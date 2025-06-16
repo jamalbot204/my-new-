@@ -1,0 +1,185 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Chat Studio</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp,container-queries"></script> <!-- Updated Tailwind CDN -->
+  <style>
+    /* Custom scrollbar for webkit browsers */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1a202c; /* gray-800 or darker gray-900 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #4a5568; /* gray-600 */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #718096; /* gray-500 */
+    }
+    /* For Firefox */
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: #4a5568 #1a202c;
+    }
+    /* Custom scrollbar for textareas */
+    textarea::-webkit-scrollbar {
+      width: 6px;
+    }
+    textarea::-webkit-scrollbar-track {
+      background: #2d3748; /* gray-700 */
+    }
+    textarea::-webkit-scrollbar-thumb {
+      background: #718096; /* gray-500 */
+      border-radius: 3px;
+    }
+    textarea::-webkit-scrollbar-thumb:hover {
+      background: #a0aec0; /* gray-400 */
+    }
+    textarea {
+       scrollbar-width: thin;
+       scrollbar-color: #718096 #2d3748;
+    }
+    /* Utility class to hide scrollbar visually but keep functionality */
+    .hide-scrollbar::-webkit-scrollbar {
+        display: none; /* For Webkit browsers */
+    }
+    .hide-scrollbar {
+        -ms-overflow-style: none;  /* For IE and Edge */
+        scrollbar-width: none;  /* For Firefox */
+    }
+
+    /* Markdown specific styles */
+    .markdown-content {
+        overflow-wrap: break-word;
+        word-break: normal; /* Use normal word breaking for the container, rely on children or overflow-wrap */
+        overflow-x: hidden;
+    }
+    .markdown-content strong { font-weight: 600; }
+    .markdown-content em { font-style: italic; }
+    .markdown-content a { color: #60a5fa; text-decoration: underline; }
+    .markdown-content a:hover { color: #93c5fd; }
+
+    .markdown-content p,
+    .markdown-content li > p { /* Target paragraphs directly and inside list items */
+        margin-bottom: 0.25em;
+        margin-top: 0.25em;
+        overflow-wrap: break-word;
+        word-break: normal; /* More natural word breaking */
+        white-space: pre-line; /* Ensures newlines are rendered */
+    }
+    .markdown-content blockquote {
+      border-left: 4px solid #4a5568;
+      padding-left: 1em;
+      margin-left: 0;
+      color: #a0aec0;
+      font-style: italic;
+      overflow-wrap: break-word;
+      word-break: normal; /* More natural word breaking */
+    }
+    .markdown-content ul, .markdown-content ol {
+      padding-left: 1.5em;
+      margin-top: 0.5em;
+      margin-bottom: 0.5em;
+    }
+    .markdown-content li {
+      margin-bottom: 0.25em;
+      overflow-wrap: break-word;
+      word-break: normal; /* More natural word breaking */
+    }
+    .markdown-content table {
+        width: auto;
+        border-collapse: collapse;
+        margin-top: 1em;
+        margin-bottom: 1em;
+        border: 1px solid #4a5568;
+    }
+    .markdown-content th, .markdown-content td {
+        border: 1px solid #4a5568;
+        padding: 0.5em 0.75em;
+        text-align: left;
+        overflow-wrap: break-word; /* For table cell content */
+        word-break: normal;
+    }
+    .markdown-content th {
+        background-color: #2d3748;
+        font-weight: 600;
+    }
+    .markdown-content hr {
+        border: 0;
+        height: 1px;
+        background-color: #4a5568;
+        margin-top: 1em;
+        margin-bottom: 1em;
+    }
+    .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+        font-weight: 600;
+        margin-top: 1em;
+        margin-bottom: 0.5em;
+        overflow-wrap: break-word;
+        word-break: normal;   /* More natural word breaking */
+    }
+    .markdown-content h1 { font-size: 1.5em; }
+    .markdown-content h2 { font-size: 1.25em; }
+    .markdown-content h3 { font-size: 1.1em; }
+    /* End Markdown specific styles */
+
+    /* Animation for thinking indicator dots */
+    @keyframes 생각_점_깜빡임 { /* Renamed for uniqueness: "thinking_dot_pulse" */
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+    }
+    .animate-thinking-dots > div {
+      animation: 생각_점_깜빡임 1.4s infinite ease-in-out;
+    }
+    .animate-thinking-dots > div:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+    .animate-thinking-dots > div:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+    .animate-thinking-dots > div:nth-child(3) {
+      /* No delay for the third, or animation-delay: 0s; */
+    }
+
+    /* Ensure the main content area respects the top player bar */
+    /* The padding-top in App.tsx is the primary method, this is a fallback if needed */
+    /* body > #root > div > div.flex-1 { padding-top: 76px; } */
+
+    /* Style for mark.js highlighting */
+    .highlighted-text {
+      background-color: #fde047; /* Tailwind yellow-400 */
+      color: #1f2937; /* Tailwind gray-800 */
+      padding: 0.05em 0; /* Minimal vertical padding */
+      border-radius: 0.15em;
+    }
+
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.0",
+    "react-markdown": "https://esm.sh/react-markdown@^9.0.1",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.0",
+    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@15.5.0",
+    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@15.5.0/",
+    "mark.js/": "https://esm.sh/mark.js@^8.11.1/",
+    "mark.js": "https://esm.sh/mark.js@^8.11.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-900 text-gray-100">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
