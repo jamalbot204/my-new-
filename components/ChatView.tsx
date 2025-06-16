@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
     import { ChatSession, ChatMessage, ChatMessageRole, Attachment, AICharacter, AttachmentUploadState, AudioPlayerState } from '../types';
     import MessageItem from './MessageItem';
@@ -58,6 +56,8 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useIm
       onManualSave: () => Promise<void>; 
       onReUploadAttachment: (sessionId: string, messageId: string, attachmentId: string) => Promise<void>; 
       showToast: (message: string, type?: 'success' | 'error') => void; 
+      onEnterReadMode: (content: string) => void;
+      showReadModeButton?: boolean;
     }
 
     export interface ChatViewHandles { 
@@ -106,6 +106,8 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useIm
         onManualSave, 
         onReUploadAttachment,
         showToast, 
+        onEnterReadMode,
+        showReadModeButton,
     }, ref) => {
       const [inputMessage, setInputMessage] = useState('');
       const fileInputRef = useRef<HTMLInputElement>(null);
@@ -593,6 +595,8 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useIm
                       highlightTerm={highlightTerm} 
                       onReUploadAttachment={onReUploadAttachment} 
                       maxWordsPerSegmentForTts={chatSession?.settings?.ttsSettings?.maxWordsPerSegment}
+                      showReadModeButton={showReadModeButton}
+                      onEnterReadMode={onEnterReadMode}
                     />
                   );
                 })

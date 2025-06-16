@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPlayerState } from '../types';
 import {
@@ -129,7 +128,7 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
 
   return (
     <div
-      className="bg-gray-800/95 backdrop-blur-sm text-gray-200 p-2 shadow-xl border-b border-gray-700 flex flex-col"
+      className="bg-gray-800/95 backdrop-blur-sm text-gray-200 p-2 shadow-xl border-b border-gray-700 flex flex-col relative z-50"
       role="toolbar"
       aria-label="Audio Player"
     >

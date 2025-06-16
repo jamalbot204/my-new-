@@ -117,6 +117,7 @@ export interface GeminiSettings {
   debugApiRequests?: boolean; 
   ttsSettings: TTSSettings; 
   showAutoSendControls?: boolean; 
+  showReadModeButton?: boolean; 
   _characterIdForCacheKey?: string; 
   _characterIdForAPICall?: string;  
   _characterNameForLog?: string; 
@@ -287,7 +288,9 @@ export interface MessageItemProps {
   onDownloadAudio?: (sessionId: string, messageId: string) => void;
   highlightTerm?: string; 
   onReUploadAttachment?: (sessionId: string, messageId: string, attachmentId: string) => Promise<void>; 
-  maxWordsPerSegmentForTts?: number; // New: Pass down for UI logic
+  maxWordsPerSegmentForTts?: number;
+  showReadModeButton?: boolean;
+  onEnterReadMode: (content: string) => void;
 }
 
 

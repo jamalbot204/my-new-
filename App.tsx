@@ -1,10 +1,3 @@
-
-
-
-
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatSession, ChatMessage, ChatMessageRole, GeminiSettings, Attachment, AICharacter, ApiRequestLog, TTSSettings, AudioPlayerState, UseAudioPlayerOptions, UseAutoFetchAudioOptions, ExportConfiguration, UserDefinedDefaults, LogApiRequestCallback } from './types'; // Added LogApiRequestCallback
 import { DEFAULT_MODEL_ID, DEFAULT_SETTINGS, INITIAL_MESSAGES_COUNT, DEFAULT_TTS_SETTINGS, MAX_WORDS_PER_TTS_SEGMENT, DEFAULT_EXPORT_CONFIGURATION } from './constants';
@@ -21,6 +14,7 @@ import ToastNotification from './components/ToastNotification';
 import TtsSettingsModal from './components/TtsSettingsModal';
 import AdvancedAudioPlayer from './components/AdvancedAudioPlayer';
 import ExportConfigurationModal from './components/ExportConfigurationModal';
+import ReadModeView from './components/ReadModeView';
 
 import { useChatSessions } from './components/useChatSessions';
 import { useAiCharacters } from './components/useAiCharacters';
@@ -76,6 +70,9 @@ const App: React.FC = () => {
   const appModals = useAppModals(closeSidebar);
 
   const chatViewRef = useRef<ChatViewHandles>(null);
+
+  const [isReadModeOpen, setIsReadModeOpen] = useState(false);
+  const [readModeContent, setReadModeContent] = useState('');
 
   const audioControlsHookRef = useRef<any>(null); 
 
@@ -166,6 +163,16 @@ const App: React.FC = () => {
     cancelGeminiGeneration: geminiHook.handleCancelGeneration,
     handleRegenerateResponseForUserMessage: geminiHook.handleRegenerateResponseForUserMessage, 
   });
+  
+  const handleEnterReadMode = (content: string) => {
+    setReadModeContent(content);
+    setIsReadModeOpen(true);
+  };
+
+  const handleCloseReadMode = () => {
+    setIsReadModeOpen(false);
+    setReadModeContent('');
+  };
 
   const handleNewChat = useCallback(async () => {
     await useChatSessionsHandleNewChat(setMessagesToDisplayConfig);
@@ -296,7 +303,8 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen antialiased text-gray-200 bg-gray-900 overflow-hidden">
-      <div className={`fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-72`}>
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-[60] transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-72`}>
         <Sidebar
           chatHistory={chatHistory} currentChatId={currentChatId}
           onNewChat={handleNewChat} onSelectChat={handleSelectChat} onDeleteChat={handleDeleteChat}
@@ -315,24 +323,10 @@ const App: React.FC = () => {
         />
       </div>
 
-      {isSidebarOpen && <div className="fixed inset-0 z-20 bg-black bg-opacity-50 md:hidden" onClick={closeSidebar} aria-hidden="true" />}
+      {isSidebarOpen && <div className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden" onClick={closeSidebar} aria-hidden="true" />}
       
-      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'md:ml-72' : 'ml-0'}`}>
-        {isAudioBarVisible && (
-            <div className="sticky top-0 z-30 bg-gray-900"> {/* Added wrapper for sticky audio player */}
-              <AdvancedAudioPlayer
-                audioPlayerState={audioPlayerHook.audioPlayerState}
-                onCloseView={audioControlsHook.handleClosePlayerViewOnly} 
-                onSeekRelative={audioPlayerHook.seekRelative}
-                onSeekToAbsolute={audioPlayerHook.seekToAbsolute}
-                onTogglePlayPause={audioPlayerHook.togglePlayPause}
-                currentMessageText={getFullTextForAudioBar()}
-                onGoToMessage={handleGoToMessage}
-                onIncreaseSpeed={audioPlayerHook.increaseSpeed} 
-                onDecreaseSpeed={audioPlayerHook.decreaseSpeed} 
-              />
-            </div>
-          )}
+      {/* Main Content Area */}
+      <main className={`flex-1 flex flex-col overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarOpen ? 'md:ml-72' : 'ml-0'} ${isAudioBarVisible ? 'pt-[76px]' : ''}`}>
         <ChatView
           ref={chatViewRef}
           chatSession={currentChatSession || null}
@@ -380,98 +374,125 @@ const App: React.FC = () => {
           onManualSave={handleManualSave}
           onReUploadAttachment={chatInteractionsHook.handleReUploadAttachment}
           showToast={showToast}
+          onEnterReadMode={handleEnterReadMode}
+          showReadModeButton={currentChatSession?.settings.showReadModeButton}
         />
+      </main>
+      
+      {/* Overlays - Rendered at the top level to float over everything */}
+      <div className='absolute'>
+        {isAudioBarVisible && (
+            <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'md:left-72' : 'left-0'}`}>
+              <AdvancedAudioPlayer
+                audioPlayerState={audioPlayerHook.audioPlayerState}
+                onCloseView={audioControlsHook.handleClosePlayerViewOnly} 
+                onSeekRelative={audioPlayerHook.seekRelative}
+                onSeekToAbsolute={audioPlayerHook.seekToAbsolute}
+                onTogglePlayPause={audioPlayerHook.togglePlayPause}
+                currentMessageText={getFullTextForAudioBar()}
+                onGoToMessage={handleGoToMessage}
+                onIncreaseSpeed={audioPlayerHook.increaseSpeed} 
+                onDecreaseSpeed={audioPlayerHook.decreaseSpeed} 
+              />
+            </div>
+        )}
+
+        <ReadModeView
+          isOpen={isReadModeOpen}
+          content={readModeContent}
+          onClose={handleCloseReadMode}
+        />
+        
+        {currentChatSession && (
+          <SettingsPanel
+            isOpen={appModals.isSettingsPanelOpen}
+            onClose={appModals.closeSettingsPanel}
+            currentModel={currentChatSession.model}
+            currentSettings={currentChatSession.settings}
+            currentChatSessionMessages={currentChatSession.messages || []}
+            onSettingsChange={handleSettingsChange}
+            onMakeGlobalDefaultSettings={handleMakeGlobalDefaultSettings}
+            onToggleDebugTerminal={() => { appModals.openDebugTerminal(); appModals.closeSettingsPanel(); }}
+            hasApiLogs={(currentChatSession.apiRequestLogs || []).length > 0}
+            onClearChatCache={chatInteractionsHook.handleClearChatCacheForCurrentSession}
+            isCurrentChatInCharacterMode={currentChatSession.isCharacterModeActive}
+            currentChatHasCharacters={!!(currentChatSession.aiCharacters && currentChatSession.aiCharacters.length > 0)}
+            showToast={showToast}
+            onOpenExportConfigurationModal={() => { appModals.openExportConfigurationModal(); appModals.closeSettingsPanel(); }}
+          />
+        )}
+        {appModals.isExportConfigModalOpen && (
+          <ExportConfigurationModal
+            isOpen={appModals.isExportConfigModalOpen}
+            currentConfig={currentExportConfig}
+            allChatSessions={chatHistory}
+            onClose={appModals.closeExportConfigurationModal}
+            onSaveConfig={handleSaveExportConfiguration}
+            onExportSelected={handleInitiateExportWithSelected}
+          />
+        )}
+        {currentChatSession && appModals.isTtsSettingsModalOpen && (
+          <TtsSettingsModal
+            isOpen={appModals.isTtsSettingsModalOpen}
+            currentSettings={currentChatSession.settings.ttsSettings || DEFAULT_TTS_SETTINGS}
+            onClose={appModals.closeTtsSettingsModal}
+            onApply={handleApplyTtsSettings}
+          />
+        )}
+        {appModals.isEditPanelOpen && appModals.editingMessageDetail && (
+          <EditMessagePanel
+            isOpen={appModals.isEditPanelOpen}
+            messageDetail={appModals.editingMessageDetail}
+            isLoading={geminiHook.isLoading}
+            onSubmit={chatInteractionsHook.handleEditPanelSubmitWrapper}
+          />
+        )}
+        {currentChatSession && (
+          <CharacterManagementModal
+            isOpen={appModals.isCharacterManagementModalOpen}
+            characters={currentChatSession.aiCharacters || []}
+            onClose={appModals.closeCharacterManagementModal}
+            onAddCharacter={handleAddCharacterWithToast}
+            onEditCharacter={handleEditCharacterWithToast}
+            onDeleteCharacter={handleDeleteCharacterWithToast}
+            onOpenContextualInfoModal={appModals.openCharacterContextualInfoModal}
+          />
+        )}
+        {currentChatSession && appModals.editingCharacterForContextualInfo && (
+          <CharacterContextualInfoModal
+            isOpen={appModals.isContextualInfoModalOpen}
+            character={appModals.editingCharacterForContextualInfo}
+            onClose={appModals.closeCharacterContextualInfoModal}
+            onSave={aiCharactersHook.handleSaveCharacterContextualInfo}
+          />
+        )}
+        {currentChatSession && currentChatSession.settings.debugApiRequests && (
+          <DebugTerminalPanel
+            isOpen={appModals.isDebugTerminalOpen}
+            logs={currentChatSession.apiRequestLogs || []}
+            onClose={appModals.closeDebugTerminal}
+            onClearLogs={() => chatInteractionsHook.handleClearApiLogs(currentChatSession.id)}
+            chatTitle={currentChatSession.title}
+          />
+        )}
+        <ConfirmationModal
+          isOpen={appModals.isDeleteConfirmationOpen}
+          title="Confirm Deletion"
+          message={<>Are you sure you want to delete this message and all <strong className="text-red-400">subsequent messages</strong> in this chat? <br/>This action cannot be undone.</>}
+          confirmText="Yes, Delete" cancelText="No, Cancel"
+          onConfirm={handleConfirmDelete} onCancel={appModals.cancelDeleteConfirmation}
+          isDestructive={true}
+        />
+        <ConfirmationModal
+          isOpen={appModals.isResetAudioConfirmationOpen}
+          title="Confirm Audio Reset"
+          message="Are you sure you want to reset the audio cache for this message? This action cannot be undone."
+          confirmText="Yes, Reset Audio" cancelText="No, Cancel"
+          onConfirm={handleConfirmResetAudioCache} onCancel={appModals.cancelResetAudioCacheConfirmation}
+          isDestructive={true}
+        />
+        {toastInfo && <ToastNotification message={toastInfo.message} type={toastInfo.type} onClose={() => setToastInfo(null)} duration={toastInfo.duration} />}
       </div>
-       
-      {currentChatSession && (
-        <SettingsPanel
-          isOpen={appModals.isSettingsPanelOpen}
-          onClose={appModals.closeSettingsPanel}
-          currentModel={currentChatSession.model}
-          currentSettings={currentChatSession.settings}
-          currentChatSessionMessages={currentChatSession.messages || []}
-          onSettingsChange={handleSettingsChange}
-          onMakeGlobalDefaultSettings={handleMakeGlobalDefaultSettings}
-          onToggleDebugTerminal={() => { appModals.openDebugTerminal(); appModals.closeSettingsPanel(); }}
-          hasApiLogs={(currentChatSession.apiRequestLogs || []).length > 0}
-          onClearChatCache={chatInteractionsHook.handleClearChatCacheForCurrentSession}
-          isCurrentChatInCharacterMode={currentChatSession.isCharacterModeActive}
-          currentChatHasCharacters={!!(currentChatSession.aiCharacters && currentChatSession.aiCharacters.length > 0)}
-          showToast={showToast}
-          onOpenExportConfigurationModal={() => { appModals.openExportConfigurationModal(); appModals.closeSettingsPanel(); }}
-        />
-      )}
-      {appModals.isExportConfigModalOpen && (
-        <ExportConfigurationModal
-          isOpen={appModals.isExportConfigModalOpen}
-          currentConfig={currentExportConfig}
-          allChatSessions={chatHistory}
-          onClose={appModals.closeExportConfigurationModal}
-          onSaveConfig={handleSaveExportConfiguration}
-          onExportSelected={handleInitiateExportWithSelected}
-        />
-      )}
-      {currentChatSession && appModals.isTtsSettingsModalOpen && (
-        <TtsSettingsModal
-          isOpen={appModals.isTtsSettingsModalOpen}
-          currentSettings={currentChatSession.settings.ttsSettings || DEFAULT_TTS_SETTINGS}
-          onClose={appModals.closeTtsSettingsModal}
-          onApply={handleApplyTtsSettings}
-        />
-      )}
-      {appModals.isEditPanelOpen && appModals.editingMessageDetail && (
-        <EditMessagePanel
-          isOpen={appModals.isEditPanelOpen}
-          messageDetail={appModals.editingMessageDetail}
-          isLoading={geminiHook.isLoading}
-          onSubmit={chatInteractionsHook.handleEditPanelSubmitWrapper}
-        />
-      )}
-      {currentChatSession && (
-        <CharacterManagementModal
-          isOpen={appModals.isCharacterManagementModalOpen}
-          characters={currentChatSession.aiCharacters || []}
-          onClose={appModals.closeCharacterManagementModal}
-          onAddCharacter={handleAddCharacterWithToast}
-          onEditCharacter={handleEditCharacterWithToast}
-          onDeleteCharacter={handleDeleteCharacterWithToast}
-          onOpenContextualInfoModal={appModals.openCharacterContextualInfoModal}
-        />
-      )}
-       {currentChatSession && appModals.editingCharacterForContextualInfo && (
-        <CharacterContextualInfoModal
-          isOpen={appModals.isContextualInfoModalOpen}
-          character={appModals.editingCharacterForContextualInfo}
-          onClose={appModals.closeCharacterContextualInfoModal}
-          onSave={aiCharactersHook.handleSaveCharacterContextualInfo}
-        />
-      )}
-      {currentChatSession && currentChatSession.settings.debugApiRequests && (
-        <DebugTerminalPanel
-          isOpen={appModals.isDebugTerminalOpen}
-          logs={currentChatSession.apiRequestLogs || []}
-          onClose={appModals.closeDebugTerminal}
-          onClearLogs={() => chatInteractionsHook.handleClearApiLogs(currentChatSession.id)}
-          chatTitle={currentChatSession.title}
-        />
-      )}
-      <ConfirmationModal
-        isOpen={appModals.isDeleteConfirmationOpen}
-        title="Confirm Deletion"
-        message={<>Are you sure you want to delete this message and all <strong className="text-red-400">subsequent messages</strong> in this chat? <br/>This action cannot be undone.</>}
-        confirmText="Yes, Delete" cancelText="No, Cancel"
-        onConfirm={handleConfirmDelete} onCancel={appModals.cancelDeleteConfirmation}
-        isDestructive={true}
-      />
-       <ConfirmationModal
-        isOpen={appModals.isResetAudioConfirmationOpen}
-        title="Confirm Audio Reset"
-        message="Are you sure you want to reset the audio cache for this message? This action cannot be undone."
-        confirmText="Yes, Reset Audio" cancelText="No, Cancel"
-        onConfirm={handleConfirmResetAudioCache} onCancel={appModals.cancelResetAudioCacheConfirmation}
-        isDestructive={true}
-      />
-      {toastInfo && <ToastNotification message={toastInfo.message} type={toastInfo.type} onClose={() => setToastInfo(null)} duration={toastInfo.duration} />}
     </div>
   );
 };

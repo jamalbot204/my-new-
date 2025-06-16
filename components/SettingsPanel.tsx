@@ -1,9 +1,6 @@
-
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { GeminiSettings, SafetySetting, TTSSettings, ChatMessage, ExportConfiguration } from '../types';
-import { DEFAULT_SETTINGS, MODEL_DEFINITIONS, DEFAULT_MODEL_ID, CloseIcon, ShieldCheckIcon, PencilIcon, DEFAULT_SAFETY_SETTINGS, MagnifyingGlassIcon, LinkIcon, INITIAL_MESSAGES_COUNT, BugAntIcon, ArrowPathIcon, SpeakerWaveIcon, DEFAULT_TTS_SETTINGS, CalculatorIcon, ExportBoxIcon, DEFAULT_EXPORT_CONFIGURATION, PlayIcon } from '../constants'; // Added PlayIcon
+import { DEFAULT_SETTINGS, MODEL_DEFINITIONS, DEFAULT_MODEL_ID, CloseIcon, ShieldCheckIcon, PencilIcon, DEFAULT_SAFETY_SETTINGS, MagnifyingGlassIcon, LinkIcon, INITIAL_MESSAGES_COUNT, BugAntIcon, ArrowPathIcon, SpeakerWaveIcon, DEFAULT_TTS_SETTINGS, CalculatorIcon, ExportBoxIcon, DEFAULT_EXPORT_CONFIGURATION, PlayIcon, BookOpenIcon } from '../constants'; // Added BookOpenIcon
 import SafetySettingsModal from './SafetySettingsModal';
 import InstructionEditModal from './InstructionEditModal'; 
 import TtsSettingsModal from './TtsSettingsModal'; 
@@ -75,6 +72,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         urlContext: currentSettings.urlContext || DEFAULT_SETTINGS.urlContext || [],
         debugApiRequests: currentSettings.debugApiRequests === undefined ? DEFAULT_SETTINGS.debugApiRequests : currentSettings.debugApiRequests,
         showAutoSendControls: currentSettings.showAutoSendControls === undefined ? DEFAULT_SETTINGS.showAutoSendControls : currentSettings.showAutoSendControls, // Initialize showAutoSendControls
+        showReadModeButton: currentSettings.showReadModeButton === undefined ? DEFAULT_SETTINGS.showReadModeButton : currentSettings.showReadModeButton,
       };
       setLocalSettings(completeSettings);
       setLocalModel(currentModel);
@@ -168,7 +166,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         useGoogleSearch: localSettings.useGoogleSearch === undefined ? DEFAULT_SETTINGS.useGoogleSearch : localSettings.useGoogleSearch,
         urlContext: localSettings.urlContext && localSettings.urlContext.length > 0 ? localSettings.urlContext : [],
         debugApiRequests: localSettings.debugApiRequests === undefined ? DEFAULT_SETTINGS.debugApiRequests : localSettings.debugApiRequests,
-        showAutoSendControls: localSettings.showAutoSendControls === undefined ? DEFAULT_SETTINGS.showAutoSendControls : localSettings.showAutoSendControls, // Finalize showAutoSendControls
+        showAutoSendControls: localSettings.showAutoSendControls === undefined ? DEFAULT_SETTINGS.showAutoSendControls : localSettings.showAutoSendControls,
+        showReadModeButton: localSettings.showReadModeButton === undefined ? DEFAULT_SETTINGS.showReadModeButton : localSettings.showReadModeButton,
     };
   }
 
@@ -190,6 +189,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         urlContext: DEFAULT_SETTINGS.urlContext || [],
         debugApiRequests: DEFAULT_SETTINGS.debugApiRequests,
         showAutoSendControls: DEFAULT_SETTINGS.showAutoSendControls, // Reset showAutoSendControls
+        showReadModeButton: DEFAULT_SETTINGS.showReadModeButton,
     }); 
     setLocalModel(DEFAULT_MODEL_ID);
   }
@@ -491,11 +491,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         onChange={handleInputChange}
                     />
                     <label htmlFor="showAutoSendControls" className="ml-2 block text-sm text-gray-300 flex items-center">
-                        <PlayIcon className="w-4 h-4 mr-1.5 text-gray-400"/> {/* Using PlayIcon as a stand-in for auto-send */}
+                        <PlayIcon className="w-4 h-4 mr-1.5 text-gray-400"/>
                         Show Auto-Send Controls
                     </label>
                 </div>
                 <p className="text-xs text-gray-400 mt-1 ml-6">Toggles the visibility of the automated message sending controls in the chat interface.</p>
+                <div className="flex items-center mt-2">
+                    <input
+                        id="showReadModeButton"
+                        name="showReadModeButton"
+                        type="checkbox"
+                        className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800"
+                        checked={localSettings.showReadModeButton ?? false}
+                        onChange={handleInputChange}
+                    />
+                    <label htmlFor="showReadModeButton" className="ml-2 block text-sm text-gray-300 flex items-center">
+                        <BookOpenIcon className="w-4 h-4 mr-1.5 text-gray-400"/>
+                        Show "Read Mode" Button
+                    </label>
+                </div>
+                <p className="text-xs text-gray-400 mt-1 ml-6">Adds a button to message options for a focused, full-screen reading view.</p>
             </div>
             
             {/* API Request Logger Toggle */}

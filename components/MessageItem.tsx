@@ -1,10 +1,3 @@
-
-
-
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -20,7 +13,7 @@ import {
     ArrowDownTrayIcon, EllipsisVerticalIcon, ClipboardIcon, CheckIcon, UsersIcon,
     ChevronDownIcon, ChevronRightIcon, XCircleIcon, SpeakerWaveIcon, StopCircleIcon, SpeakerXMarkIcon,
     PauseIcon, MAX_WORDS_PER_TTS_SEGMENT, MESSAGE_CONTENT_SNIPPET_THRESHOLD, ChevronUpIcon,
-    AudioResetIcon 
+    AudioResetIcon, BookOpenIcon
 } from '../constants';
 import { splitTextForTts } from '../services/utils'; // Updated import
 
@@ -150,6 +143,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
   highlightTerm, 
   onReUploadAttachment, 
   maxWordsPerSegmentForTts,
+  showReadModeButton,
+  onEnterReadMode,
 }) => {
   const isUser = message.role === ChatMessageRole.USER;
   const isError = message.role === ChatMessageRole.ERROR;
@@ -364,6 +359,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const handleResetCacheClick = () => {
     onRequestResetAudioCacheConfirmation(chatSessionId, message.id); 
     setIsOptionsMenuOpen(false); 
+  };
+
+  const handleReadModeClick = () => {
+    onEnterReadMode(displayContent);
+    setIsOptionsMenuOpen(false);
   };
 
 
@@ -738,11 +738,18 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     {isOptionsMenuOpen && (
                         <div
                             ref={dropdownRef}
-                            className={`absolute ${dynamicDropdownClass} top-full mt-1.5 w-auto bg-gray-700 rounded-md shadow-lg z-20 p-1 flex space-x-1 ring-1 ring-black ring-opacity-5 focus:outline-none`}
+                            className={`absolute ${dynamicDropdownClass} top-full mt-1.5 w-auto bg-gray-700 rounded-md shadow-lg z-30 p-1 flex space-x-1 ring-1 ring-black ring-opacity-5 focus:outline-none`}
                             role="menu"
                             aria-orientation="horizontal"
                             aria-labelledby={`options-menu-button-${message.id}`}
                         >
+                            {showReadModeButton && (
+                                <DropdownMenuItem
+                                onClick={handleReadModeClick}
+                                icon={BookOpenIcon}
+                                label="Read Mode"
+                                />
+                            )}
                             <DropdownMenuItem
                                 onClick={handleCopyMessageClick}
                                 icon={ClipboardDocumentListIcon}
