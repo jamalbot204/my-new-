@@ -437,16 +437,24 @@ const MessageItem: React.FC<MessageItemProps> = ({
           ? 'text-gray-500 cursor-not-allowed' 
           : `text-gray-200 hover:bg-gray-600 ${className || ''}`
       }`}
-      onClick={() => {
+      onMouseDown={() => {
         if (!disabled) {
-            onClick();
+          onClick();
         }
+      }}
+      onTouchStart={() => {
+        if (!disabled) {
+          onClick();
+        }
+      }}
+      onClick={(e) => {
+        // Prevent the standard click event since we are handling the action on mouse down/touch start.
+        e.preventDefault();
       }}
     >
       <Icon className={`w-5 h-5 ${disabled ? 'text-gray-500' : ''}`} />
     </button>
   );
-
   const SpinnerIcon = () => (
     <svg className="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

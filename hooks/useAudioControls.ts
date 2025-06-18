@@ -188,12 +188,7 @@ export function useAudioControls({
             });
 
             if (allSucceeded) {
-                if (numExpectedSegments === 1 && newBuffers[0]) {
-                    showToast("Audio fetched and playing.", "success");
-                    audioPlayerHook.playText(textSegments[0], baseMessageId, ttsSettings, newBuffers[0]);
-                } else {
-                    showToast("All audio parts fetched. Click play again.", "success");
-                }
+                showToast("Audio fetched and ready. Click play again.", "success");
             } else {
                 showToast("Some audio parts failed to fetch. Check console.", "error");
             }

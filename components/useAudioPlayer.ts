@@ -309,14 +309,14 @@ export function useAudioPlayer(
       }
       onCacheAudio?.(uniqueSegmentId, pcmDataBuffer);
 
-      if (audioPlayerState.currentMessageId === uniqueSegmentId && !controller.signal.aborted) {
-        await startPlaybackInternal(pcmDataBuffer, 0, textSegment, uniqueSegmentId);
-      } else if (controller.signal.aborted) {
-         // State should have been updated by cancelCurrentSegmentAudioLoad
-         setAudioPlayerState(prev => prev.currentMessageId === uniqueSegmentId ? {...prev, isLoading: false} : prev);
-      } else {
-         setAudioPlayerState(prev => prev.currentMessageId === uniqueSegmentId ? {...prev, isLoading: false} : prev);
-      }
+      // We have successfully fetched and cached the audio. Now, we stop the loading indicator
+      // but we will NOT automatically play it. The user will need to click play again.
+      setAudioPlayerState(prev => {
+        if (prev.currentMessageId === uniqueSegmentId) {
+             return { ...prev, isLoading: false };
+        }
+        return prev;
+      });
     } catch (caughtError: any) {
       fetchError = caughtError as Error;
       if (fetchError.name === 'AbortError') {

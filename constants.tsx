@@ -7,13 +7,15 @@ export const APP_TITLE = "Gemini Chat Interface"; // Matches screenshot
 // while staying within the Gemini family focus.
 export const MODEL_DEFINITIONS = [
   { id: 'gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview 04-17' },
-  { id: 'gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview 05-20 (NEW)' },
+  { id: 'gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview 05-20' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash(NEW)' },
+  { id: 'gemini-2.5-flash-lite-preview-06-17', name: 'Gemini 2.5 Flash Lite Preview 06-17' },
   { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview 05-06' },
-  { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro Preview 06-05 (NEW)' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro(NEW)' },
   { id: 'learnlm-2.0-flash-experimental', name: 'learn LM 2.0 Flash Experimental' },
 ];
 
-export const DEFAULT_MODEL_ID = 'gemini-2.5-pro-preview-06-05'; // Keeping this as the default per initial guidelines
+export const DEFAULT_MODEL_ID = 'gemini-2.5-pro'; // Keeping this as the default per initial guidelines
 
 export const DEFAULT_SAFETY_SETTINGS: SafetySetting[] = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
