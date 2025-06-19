@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { ChatSession, ChatMessage, GeminiSettings, Attachment, AICharacter, ApiRequestLog, ExportConfiguration, UserDefinedDefaults } from '../types';
 import { useChatSessions } from '../hooks/useChatSessions';
@@ -27,7 +28,7 @@ interface ChatContextType {
   handleDeleteChat: (id: string) => void;
   isLoadingData: boolean;
 
-  // From useGemini
+  // From useGemini (and wrapped by useChatInteractions for handleEditPanelSubmit)
   isLoading: boolean;
   currentGenerationTimeDisplay: string;
   handleSendMessage: (promptContent: string, attachments?: Attachment[], historyContextOverride?: ChatMessage[], characterIdForAPICall?: string, isTemporaryContext?: boolean) => Promise<void>;
@@ -35,7 +36,7 @@ interface ChatContextType {
   handleCancelGeneration: () => Promise<void>;
   handleRegenerateAIMessage: (sessionId: string, aiMessageIdToRegenerate: string) => Promise<void>;
   handleRegenerateResponseForUserMessage: (sessionId: string, userMessageId: string) => Promise<void>;
-  handleEditPanelSubmit: (action: EditMessagePanelAction, newContent: string, details: EditMessagePanelDetails) => Promise<void>;
+  handleEditPanelSubmit: (action: EditMessagePanelAction, newContent: string, details: EditMessagePanelDetails) => Promise<void>; // This is the wrapper from useChatInteractions
 
   // From useAiCharacters
   handleToggleCharacterMode: () => Promise<void>;
@@ -120,7 +121,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const chatInteractions = useChatInteractions({
     currentChatSession, updateChatSession, showToast: ui.showToast,
     openEditPanel: ui.openEditPanel, closeEditPanel: ui.closeEditPanel,
-    geminiHandleEditPanelSubmit: gemini.handleEditPanelSubmit,
+    geminiHandleEditPanelSubmit: gemini.handleEditPanelSubmit, // Pass the original gemini hook's submit
     geminiHandleCancelGeneration: gemini.handleCancelGeneration,
     isLoadingFromGemini: gemini.isLoading,
     setMessageGenerationTimes: persistence.setMessageGenerationTimes,
@@ -189,12 +190,33 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const value: ChatContextType = {
     chatHistory, setChatHistory, currentChatId, setCurrentChatId, currentChatSession,
     updateChatSession, handleNewChat, handleSelectChat, handleDeleteChat, isLoadingData,
-    ...gemini,
+    
+    // From useGemini (some are wrapped by useChatInteractions)
+    isLoading: gemini.isLoading,
+    currentGenerationTimeDisplay: gemini.currentGenerationTimeDisplay,
+    handleSendMessage: gemini.handleSendMessage,
+    handleContinueFlow: gemini.handleContinueFlow,
+    handleCancelGeneration: gemini.handleCancelGeneration,
+    handleRegenerateAIMessage: gemini.handleRegenerateAIMessage,
+    handleRegenerateResponseForUserMessage: gemini.handleRegenerateResponseForUserMessage,
+    handleEditPanelSubmit: chatInteractions.handleEditPanelSubmitWrapper, // Use the wrapper
+
+    // From useAiCharacters
     ...aiCharacters,
-    handleAddCharacter, handleEditCharacter, handleDeleteCharacter,
+    handleAddCharacter, 
+    handleEditCharacter, 
+    handleDeleteCharacter,
+    
+    // From useImportExport
     ...importExport,
+    
+    // From useAppPersistence
     ...persistence,
+    
+    // From useSidebarActions
     ...sidebarActions,
+    
+    // From useChatInteractions (specific actions not covered by gemini context directly)
     handleDeleteMessageAndSubsequent: chatInteractions.handleDeleteMessageAndSubsequent,
     handleDeleteSingleMessageOnly: chatInteractions.handleDeleteSingleMessageOnly,
     handleLoadMoreDisplayMessages: chatInteractions.handleLoadMoreDisplayMessages,
@@ -203,6 +225,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     handleClearChatCacheForCurrentSession: chatInteractions.handleClearChatCacheForCurrentSession,
     handleReUploadAttachment: chatInteractions.handleReUploadAttachment,
     handleActualCopyMessage: chatInteractions.handleActualCopyMessage,
+    
     autoSendHook: autoSend,
   };
 

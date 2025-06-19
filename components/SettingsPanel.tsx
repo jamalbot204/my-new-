@@ -19,7 +19,7 @@ const SettingsPanel: React.FC = () => {
     const [localSettings, setLocalSettings] = useState<GeminiSettings>(currentChatSession?.settings || DEFAULT_SETTINGS);
     const [localModel, setLocalModel] = useState<string>(currentChatSession?.model || DEFAULT_MODEL_ID);
     const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
-    const [isTtsModalOpen, setIsTtsModalOpen] = useState(false);
+    // isTtsModalOpen is now managed by UIContext
     const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false);
     const [editingInstructionType, setEditingInstructionType] = useState<'systemInstruction' | 'userPersonaInstruction' | null>(null);
     const [instructionModalContent, setInstructionModalContent] = useState('');
@@ -108,8 +108,10 @@ const SettingsPanel: React.FC = () => {
     };
 
     const handleApplyTtsSettings = (newTtsSettings: TTSSettings) => {
+        // This function is now managed by TtsSettingsModal itself via context
+        // No longer directly called here. Kept for reference if structure changes.
         setLocalSettings(prev => ({ ...prev, ttsSettings: newTtsSettings }));
-        setIsTtsModalOpen(false);
+        ui.closeTtsSettingsModal();
     };
 
     const handleCustomizeExportClick = () => {
@@ -147,7 +149,7 @@ const SettingsPanel: React.FC = () => {
                         <div className="pt-2">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center"><SpeakerWaveIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Text-to-Speech (TTS) settings</h3></div>
-                                <button onClick={() => setIsTtsModalOpen(true)} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="Configure Text-to-Speech settings">Configure <PencilIcon className="w-3 h-3 ml-1" /></button>
+                                <button onClick={ui.openTtsSettingsModal} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="Configure Text-to-Speech settings">Configure <PencilIcon className="w-3 h-3 ml-1" /></button>
                             </div>
                             <p className="text-xs text-gray-400">Configure voice model and other TTS options.</p>
                         </div>
@@ -248,7 +250,7 @@ const SettingsPanel: React.FC = () => {
                 </div>
             </div>
             {isSafetyModalOpen && localSettings.safetySettings && (<SafetySettingsModal isOpen={isSafetyModalOpen} currentSafetySettings={localSettings.safetySettings} onClose={() => setIsSafetyModalOpen(false)} onApply={handleApplySafetySettings} />)}
-            {isTtsModalOpen && localSettings.ttsSettings && (<TtsSettingsModal isOpen={isTtsModalOpen} currentSettings={localSettings.ttsSettings} onClose={() => setIsTtsModalOpen(false)} onApply={handleApplyTtsSettings} />)}
+            {ui.isTtsSettingsModalOpen && <TtsSettingsModal />}
             {isInstructionModalOpen && editingInstructionType && (<InstructionEditModal isOpen={isInstructionModalOpen} title={editingInstructionType === 'systemInstruction' ? "Edit System Instruction" : "Edit User Persona Instruction"} currentInstruction={instructionModalContent} onApply={handleApplyInstructionChange} onClose={() => { setIsInstructionModalOpen(false); setEditingInstructionType(null); }} />)}
         </>
     );

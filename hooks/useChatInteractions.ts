@@ -144,62 +144,96 @@ export function useChatInteractions({
     if (!chat || chat.id !== sessionId) return;
     openEditPanel({
       sessionId, messageId, originalContent: currentContent, role, attachments,
-      model: chat.model, settings: chat.settings
+      // model and settings are not part of EditMessagePanelDetails
     });
     if (isSettingsPanelOpen) closeSettingsPanel();
     closeSidebar();
   }, [currentChatSession, openEditPanel, isSettingsPanelOpen, closeSettingsPanel, closeSidebar]);
 
-  const handleEditPanelSubmitWrapper = useCallback(async (action: EditMessagePanelAction, newContent: string, editingMessageDetail: EditMessagePanelDetails) => {
+  const handleEditPanelSubmitWrapper = useCallback(async (
+    action: EditMessagePanelAction,
+    newContent: string,
+    editingMessageDetail: EditMessagePanelDetails
+  ) => {
     if (!currentChatSession) return;
+
     const { sessionId, messageId, role, originalContent } = editingMessageDetail;
 
+    const messageToEdit = currentChatSession.messages.find(m => m.id === messageId);
+    const contentChanged = newContent.trim() !== originalContent.trim();
+
     if (action === EditMessagePanelAction.SAVE_LOCALLY) {
-        if (newContent.trim() === originalContent.trim()) {
+        if (!contentChanged) {
             closeEditPanel();
             return;
         }
-        const messageToEdit = currentChatSession.messages.find(m => m.id === messageId);
-        if (messageToEdit?.cachedAudioBuffers?.some(b => b !== null)) {
-            requestResetAudioCacheConfirmationModal(sessionId, messageId); 
+        if (contentChanged && messageToEdit?.cachedAudioBuffers?.some(b => b !== null)) {
+            requestResetAudioCacheConfirmationModal(sessionId, messageId);
         }
         await updateChatSession(sessionId, session => session ? ({
             ...session,
             messages: session.messages.map(msg =>
                 (msg.id === messageId)
-                ? { ...msg, content: newContent, timestamp: new Date(), cachedAudioBuffers: null } 
+                ? { ...msg, content: newContent, timestamp: new Date(), cachedAudioBuffers: null }
                 : msg
             )
         }) : null);
-        if (role === ChatMessageRole.MODEL) { 
-            setMessageGenerationTimes(prev => { const n = {...prev}; delete n[messageId]; return n; }).catch(console.error);
+
+        if (role === ChatMessageRole.MODEL || role === ChatMessageRole.ERROR) {
+            await setMessageGenerationTimes(prev => { const n = {...prev}; delete n[messageId]; return n; });
         }
         closeEditPanel();
         showToast("Saved locally!", "success");
-    } else if (action === EditMessagePanelAction.CANCEL) {
+        return;
+    }
+    
+    if (action === EditMessagePanelAction.CANCEL) {
         if (isLoadingFromGemini && editingMessageDetail.role === ChatMessageRole.MODEL) {
             await geminiHandleCancelGeneration();
         }
         closeEditPanel();
-    } else { // Handles SAVE_AND_SUBMIT and CONTINUE_PREFIX
-        closeEditPanel();
-        showToast(action === EditMessagePanelAction.SAVE_AND_SUBMIT ? "Message submitted to AI!" : "Continuation initiated...", "success");
-        
+        return;
+    }
+
+    // For AI-interacting actions (SAVE_AND_SUBMIT, CONTINUE_PREFIX)
+    if (action === EditMessagePanelAction.SAVE_AND_SUBMIT || action === EditMessagePanelAction.CONTINUE_PREFIX) {
+        if (contentChanged && messageToEdit?.cachedAudioBuffers?.some(b => b !== null)) {
+            requestResetAudioCacheConfirmationModal(sessionId, messageId);
+        }
+        // Ensure audio cache is cleared for the message being edited/continued before Gemini call
+        await updateChatSession(sessionId, session => session ? ({
+            ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, cachedAudioBuffers: null } : msg)
+        }) : null);
+
+        closeEditPanel(); // Close panel immediately
+        showToast(
+            action === EditMessagePanelAction.SAVE_AND_SUBMIT ? "Submitting to AI..." : "Continuing with AI...",
+            "success"
+        );
         try {
-            if (action === EditMessagePanelAction.SAVE_AND_SUBMIT || action === EditMessagePanelAction.CONTINUE_PREFIX) {
-                 if (role === ChatMessageRole.USER || role === ChatMessageRole.MODEL) { 
-                    await updateChatSession(sessionId, session => session ? ({
-                        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, cachedAudioBuffers: null } : msg)
-                    }) : null);
-                }
-            }
             await geminiHandleEditPanelSubmit(action, newContent, editingMessageDetail);
         } catch (e: any) {
-            console.error("Error handling edit panel submit action:", e);
-            showToast(`Failed to ${action}. Error: ${e.message || 'Unknown error'}`, "error");
+            console.error(`Error during ${action}:`, e);
+            showToast(`Failed to ${action.replace('_', ' ').toLowerCase()}. Error: ${e.message || 'Unknown error'}`, "error");
         }
+        return;
     }
-  }, [currentChatSession, updateChatSession, geminiHandleEditPanelSubmit, geminiHandleCancelGeneration, isLoadingFromGemini, closeEditPanel, requestResetAudioCacheConfirmationModal, setMessageGenerationTimes, showToast]);
+    
+    // Fallback if an unknown action is passed, though this shouldn't happen with current enum
+    console.warn("Unhandled EditMessagePanelAction:", action);
+    closeEditPanel();
+
+  }, [
+    currentChatSession,
+    updateChatSession,
+    closeEditPanel,
+    showToast,
+    requestResetAudioCacheConfirmationModal,
+    setMessageGenerationTimes,
+    geminiHandleEditPanelSubmit,
+    isLoadingFromGemini,
+    geminiHandleCancelGeneration
+  ]);
 
 
   const handleLoadMoreDisplayMessages = useCallback(async (chatId: string, count: number) => {

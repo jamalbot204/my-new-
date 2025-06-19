@@ -308,8 +308,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         originalContent: message.content, 
         role: message.role, 
         attachments: message.attachments,
-        model: chat.currentChatSession.model,
-        settings: chat.currentChatSession.settings,
+        // model and settings are not part of EditMessagePanelDetails
     });
     setIsOptionsMenuOpen(false);
   };

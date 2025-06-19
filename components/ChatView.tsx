@@ -165,7 +165,13 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 
         prevScrollHeightRef.current = messageListRef.current?.scrollHeight || 0;
         shouldPreserveScrollRef.current = false;
-        await chat.handleSendMessage(currentInputMessageValue, attachmentsToSend, characterId, temporaryContextFlag);
+        // Corrected arguments for handleSendMessage:
+        // 1. promptContent: string
+        // 2. attachments?: Attachment[]
+        // 3. historyContextOverride?: ChatMessage[]
+        // 4. characterIdForAPICall?: string
+        // 5. isTemporaryContext?: boolean
+        await chat.handleSendMessage(currentInputMessageValue, attachmentsToSend, undefined, characterId, temporaryContextFlag);
     };
 
     const handleContinueFlowClick = async () => {
@@ -261,8 +267,26 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     const handleDrop = async (e: React.DragEvent<HTMLDivElement | HTMLButtonElement>) => {
         e.preventDefault();
         if (!isReorderingActive || !draggedCharRef.current || !chat.currentChatSession) return;
-        // This logic would need to be moved to the context or passed down
+        
+        const targetCharId = (e.target as HTMLElement).closest('button[data-char-id]')?.getAttribute('data-char-id');
+        if (!targetCharId) return;
+
+        const draggedChar = draggedCharRef.current;
+        const currentChars = [...characters];
+        
+        const draggedIndex = currentChars.findIndex(c => c.id === draggedChar.id);
+        const targetIndex = currentChars.findIndex(c => c.id === targetCharId);
+
+        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
+
+        const [removed] = currentChars.splice(draggedIndex, 1);
+        currentChars.splice(targetIndex, 0, removed);
+        
+        setCharactersState(currentChars); // Update local state immediately for responsiveness
+        await chat.handleReorderCharacters(currentChars); // Update context and persist
+        draggedCharRef.current = null;
     };
+
 
     const handleDragEnd = (e: React.DragEvent<HTMLButtonElement>) => {
         if (!isReorderingActive) return;
