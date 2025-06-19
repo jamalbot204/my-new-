@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { AudioResetIcon } from '../constants'; // Using the new icon
+import { AudioResetIcon } from './Icons';
 
 interface ResetAudioCacheButtonProps {
   onClick: () => void;

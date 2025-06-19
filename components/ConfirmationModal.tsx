@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CloseIcon } from '../constants'; // Assuming CloseIcon is in constants
+import { CloseIcon } from './Icons';
 
 interface ConfirmationModalProps {
   isOpen: boolean;

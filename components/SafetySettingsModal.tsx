@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { SafetySetting, HarmCategory, HarmBlockThreshold } from '../types';
-import { DEFAULT_SAFETY_SETTINGS, HARM_CATEGORY_LABELS, HARM_BLOCK_THRESHOLD_LABELS, CloseIcon } from '../constants';
-
+import { DEFAULT_SAFETY_SETTINGS, HARM_CATEGORY_LABELS, HARM_BLOCK_THRESHOLD_LABELS } from '../constants';
+import { CloseIcon } from './Icons';
 interface SafetySettingsModalProps {
   isOpen: boolean;
   currentSafetySettings: SafetySetting[];

@@ -1,7 +1,6 @@
 
 import { useState, useCallback } from 'react';
 import { ChatSession, Attachment, AICharacter } from '../types'; // Adjusted paths
-import { useChatSessions } from '../components/useChatSessions'; // This might not be needed if updateChatSession is passed
 import * as dbService from '../services/dbService';
 import { DEFAULT_SETTINGS, INITIAL_MESSAGES_COUNT } from '../constants';
 

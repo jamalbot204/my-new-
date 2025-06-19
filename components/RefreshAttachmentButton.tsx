@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ArrowPathIcon, XCircleIcon } from '../constants'; 
+import { ArrowPathIcon, XCircleIcon } from './Icons';
 import { Attachment } from '../types';
 
 interface RefreshAttachmentButtonProps {

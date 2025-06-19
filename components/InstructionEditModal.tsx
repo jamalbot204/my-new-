@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CloseIcon } from '../constants';
+import { CloseIcon } from './Icons';
 import useAutoResizeTextarea from '../hooks/useAutoResizeTextarea'; // Import the new hook
 
 interface InstructionEditModalProps {

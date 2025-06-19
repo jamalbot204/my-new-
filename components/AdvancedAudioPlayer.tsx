@@ -7,9 +7,9 @@ import {
   PlayIcon,
   PauseIcon,
   FastForwardIcon,
-  PlusIcon, // Added
-  MinusIcon // Added
-} from '../constants';
+  PlusIcon,
+  MinusIcon
+} from './Icons';
 import GoToMessageButton from './GoToMessageButton'; // Import the new button
 
 interface AdvancedAudioPlayerProps {

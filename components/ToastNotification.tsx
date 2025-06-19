@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { CheckCircleIcon, XCircleIcon, CloseIcon as CloseButtonIcon } from '../constants'; // Added CloseButtonIcon
+import { CheckCircleIcon, XCircleIcon, CloseIcon as CloseButtonIcon } from './Icons';
 
 interface ToastNotificationProps {
   message: string;

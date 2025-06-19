@@ -3,21 +3,31 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { LightAsync as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import Mark from 'mark.js/dist/mark.es6.js'; // Import mark.js
-import { ChatMessage, ChatMessageRole, GroundingChunk, Attachment, AudioPlayerState, MessageItemProps } from '../types'; // Updated to import MessageItemProps
-import ResetAudioCacheButton from './ResetAudioCacheButton'; // Import the new button
-import RefreshAttachmentButton from './RefreshAttachmentButton'; // Import the new button
+import Mark from 'mark.js/dist/mark.es6.js';
+import { ChatMessage, ChatMessageRole, GroundingChunk, Attachment } from '../types';
+import ResetAudioCacheButton from './ResetAudioCacheButton';
+import RefreshAttachmentButton from './RefreshAttachmentButton';
+import { useChatContext } from '../contexts/ChatContext';
+import { useUIContext } from '../contexts/UIContext';
+import { useAudioContext } from '../contexts/AudioContext';
+import { MAX_WORDS_PER_TTS_SEGMENT, MESSAGE_CONTENT_SNIPPET_THRESHOLD } from '../constants';
 import { 
     UserIcon, SparklesIcon, PencilIcon, TrashIcon, ClipboardDocumentListIcon, 
     ArrowPathIcon, MagnifyingGlassIcon, DocumentIcon, PlayCircleIcon, 
     ArrowDownTrayIcon, EllipsisVerticalIcon, ClipboardIcon, CheckIcon, UsersIcon,
     ChevronDownIcon, ChevronRightIcon, XCircleIcon, SpeakerWaveIcon, StopCircleIcon, SpeakerXMarkIcon,
-    PauseIcon, MAX_WORDS_PER_TTS_SEGMENT, MESSAGE_CONTENT_SNIPPET_THRESHOLD, ChevronUpIcon,
-    AudioResetIcon, BookOpenIcon
-} from '../constants';
-import { splitTextForTts } from '../services/utils'; // Updated import
+    PauseIcon, ChevronUpIcon, BookOpenIcon
+} from './Icons';
+import { splitTextForTts } from '../services/utils';
 
-// MessageItemProps is now imported from types.ts
+// The props are now much simpler!
+interface MessageItemProps {
+  message: ChatMessage;
+  canRegenerateFollowingAI?: boolean;
+  chatScrollContainerRef?: React.RefObject<HTMLDivElement>;
+  highlightTerm?: string;
+  onEnterReadMode: (content: string) => void;
+}
 
 const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?: string }>> = ({
     inline,
@@ -61,7 +71,7 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
 
     return (
       <div className="relative group/codeblock my-2 rounded-md overflow-hidden shadow border border-gray-700">
-        <div className="flex justify-start items-center px-3 py-1.5 bg-gray-700"> {/* Changed: Removed button, justify-start */}
+        <div className="flex justify-start items-center px-3 py-1.5 bg-gray-700">
           <span className="text-xs text-gray-300 font-mono">
             {lang || 'code'} 
           </span>
@@ -103,7 +113,6 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
             </code>
           </pre>
         )}
-        {/* Moved copy button here, to the bottom right, visible on hover */}
         <button
           onClick={handleCopyCode}
           title={isCodeCopied ? "Copied!" : "Copy code"}
@@ -119,33 +128,16 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
 
 const MessageItem: React.FC<MessageItemProps> = ({ 
   message, 
-  chatSessionId, 
-  messageGenerationTimes,
-  onCopyMessage, 
-  onAttemptDeleteMessageAndHistory, 
-  onDeleteSingleMessage,
-  onEditUserMessage,
-  onEditModelMessage, 
-  onRegenerateAIMessage,
-  onRegenerateResponseForUserMessage,
   canRegenerateFollowingAI,
   chatScrollContainerRef,
-  onPlayText,
-  onStopPlayback, 
-  audioPlayerState,
-  isApiFetchingThisSegment,
-  onCancelApiFetchThisSegment,
-  getSegmentFetchError, // New prop
-  isMainButtonMultiFetchingApi,
-  onCancelMainButtonMultiFetchApi,
-  onRequestResetAudioCacheConfirmation,
-  onDownloadAudio,
-  highlightTerm, 
-  onReUploadAttachment, 
-  maxWordsPerSegmentForTts,
-  showReadModeButton,
+  highlightTerm,
   onEnterReadMode,
 }) => {
+  // Get all data and functions from our new contexts!
+  const chat = useChatContext();
+  const ui = useUIContext();
+  const audio = useAudioContext();
+
   const isUser = message.role === ChatMessageRole.USER;
   const isError = message.role === ChatMessageRole.ERROR;
   const isModel = message.role === ChatMessageRole.MODEL;
@@ -183,7 +175,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
     }
   }
 
-  const actualMaxWords = maxWordsPerSegmentForTts ?? MAX_WORDS_PER_TTS_SEGMENT;
+  const actualMaxWords = chat.currentChatSession?.settings?.ttsSettings?.maxWordsPerSegment ?? MAX_WORDS_PER_TTS_SEGMENT;
   const textSegmentsForTts = splitTextForTts(displayContent, actualMaxWords);
   const numExpectedTtsParts = textSegmentsForTts.length;
   
@@ -309,11 +301,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
 
   const handleEditClick = () => {
-    if (isUser) {
-      onEditUserMessage(chatSessionId, message.id, message.content, message.role, message.attachments);
-    } else if (isModel) {
-      onEditModelMessage(chatSessionId, message.id, message.content, message.role, message.attachments);
-    }
+    if (!chat.currentChatSession) return;
+    ui.openEditPanel({ 
+        sessionId: chat.currentChatSession.id, 
+        messageId: message.id, 
+        originalContent: message.content, 
+        role: message.role, 
+        attachments: message.attachments,
+        model: chat.currentChatSession.model,
+        settings: chat.currentChatSession.settings,
+    });
     setIsOptionsMenuOpen(false);
   };
 
@@ -331,33 +328,33 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleCopyMessageClick = async () => {
-    await onCopyMessage(message.content); 
+    await chat.handleActualCopyMessage(message.content); 
     setIsOptionsMenuOpen(false); 
   };
   
   const handleMasterPlayButtonClick = () => {
-    if (isMainButtonMultiFetchingApi(message.id)) {
-        onCancelMainButtonMultiFetchApi(message.id);
+    if (audio.isMainButtonMultiFetchingApi(message.id)) {
+        audio.handleCancelMultiPartFetch(message.id);
     } else {
-        // This will trigger "fetch all parts" if needed, or play first/single part.
-        onPlayText(displayContent, message.id, undefined);
+        audio.handlePlayTextForMessage(displayContent, message.id, undefined);
     }
     setIsOptionsMenuOpen(false);
   };
 
   const handlePartPlayButtonClick = (partIndex: number) => {
     const uniqueSegmentId = `${message.id}_part_${partIndex}`;
-    if (isApiFetchingThisSegment(uniqueSegmentId)) {
-        onCancelApiFetchThisSegment(uniqueSegmentId);
+    if (audio.isApiFetchingThisSegment(uniqueSegmentId)) {
+        audio.onCancelApiFetchThisSegment(uniqueSegmentId);
     } else {
-        onPlayText(displayContent, message.id, partIndex);
+        audio.handlePlayTextForMessage(displayContent, message.id, partIndex);
     }
     setIsOptionsMenuOpen(false);
   };
 
 
   const handleResetCacheClick = () => {
-    onRequestResetAudioCacheConfirmation(chatSessionId, message.id); 
+    if (!chat.currentChatSession) return;
+    ui.requestResetAudioCacheConfirmation(chat.currentChatSession.id, message.id); 
     setIsOptionsMenuOpen(false); 
   };
 
@@ -377,21 +374,21 @@ const MessageItem: React.FC<MessageItemProps> = ({
   
   const layoutClasses = isUser ? 'justify-end' : 'justify-start';
 
-  const generationTime = messageGenerationTimes[message.id];
+  const generationTime = chat.messageGenerationTimes[message.id];
   const groundingChunks = message.groundingMetadata?.groundingChunks;
   
   const getAudioStateForSegment = (baseMessageId: string, partIdx?: number) => {
     const segmentId = partIdx !== undefined ? `${baseMessageId}_part_${partIdx}` : baseMessageId;
-    const isCurrentPlayerTarget = audioPlayerState.currentMessageId === segmentId;
-    const segmentFetchErr = getSegmentFetchError(segmentId);
+    const isCurrentPlayerTarget = audio.audioPlayerState.currentMessageId === segmentId;
+    const segmentFetchErr = audio.getSegmentFetchError(segmentId);
     
     let isCached = false;
-    if (partIdx !== undefined) { // Specific part
+    if (partIdx !== undefined) {
         isCached = !!message.cachedAudioBuffers?.[partIdx];
-    } else { // Main button context
+    } else {
         if (numExpectedTtsParts > 1) {
-            isCached = allTtsPartsCached; // True if all parts of a multi-part message are cached
-        } else { // Single part message
+            isCached = allTtsPartsCached;
+        } else {
             isCached = !!message.cachedAudioBuffers?.[0];
         }
     }
@@ -399,11 +396,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
     return {
         uniqueSegmentId: segmentId,
         isCurrentAudioPlayerTarget: isCurrentPlayerTarget,
-        isAudioPlayingForThisSegment: isCurrentPlayerTarget && audioPlayerState.isPlaying,
-        isAudioLoadingForPlayer: isCurrentPlayerTarget && audioPlayerState.isLoading, 
-        hasAudioErrorForThisSegment: (isCurrentPlayerTarget && !!audioPlayerState.error) || !!segmentFetchErr,
-        audioErrorMessage: segmentFetchErr || (isCurrentPlayerTarget ? audioPlayerState.error : null),
-        isAudioReadyToPlayFromCacheForSegment: isCached && !(isCurrentPlayerTarget && audioPlayerState.isPlaying) && !(isCurrentPlayerTarget && audioPlayerState.isLoading) && !segmentFetchErr,
+        isAudioPlayingForThisSegment: isCurrentPlayerTarget && audio.audioPlayerState.isPlaying,
+        isAudioLoadingForPlayer: isCurrentPlayerTarget && audio.audioPlayerState.isLoading, 
+        hasAudioErrorForThisSegment: (isCurrentPlayerTarget && !!audio.audioPlayerState.error) || !!segmentFetchErr,
+        audioErrorMessage: segmentFetchErr || (isCurrentPlayerTarget ? audio.audioPlayerState.error : null),
+        isAudioReadyToPlayFromCacheForSegment: isCached && !(isCurrentPlayerTarget && audio.audioPlayerState.isPlaying) && !(isCurrentPlayerTarget && audio.audioPlayerState.isLoading) && !segmentFetchErr,
     };
   };
   
@@ -414,10 +411,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   const isAnyAudioOperationActiveForMessage = 
     message.isStreaming || 
-    isMainButtonMultiFetchingApi(message.id) || 
-    textSegmentsForTts.some((_, partIdx) => isApiFetchingThisSegment(`${message.id}_part_${partIdx}`)) || 
-    (numExpectedTtsParts <= 1 && isApiFetchingThisSegment(message.id)) ||
-    (audioPlayerState.currentMessageId?.startsWith(message.id) && (audioPlayerState.isLoading || audioPlayerState.isPlaying));
+    audio.isMainButtonMultiFetchingApi(message.id) || 
+    textSegmentsForTts.some((_, partIdx) => audio.isApiFetchingThisSegment(`${message.id}_part_${partIdx}`)) || 
+    (numExpectedTtsParts <= 1 && audio.isApiFetchingThisSegment(message.id)) ||
+    (audio.audioPlayerState.currentMessageId?.startsWith(message.id) && (audio.audioPlayerState.isLoading || audio.audioPlayerState.isPlaying));
 
 
   const DropdownMenuItem: React.FC<{
@@ -437,29 +434,12 @@ const MessageItem: React.FC<MessageItemProps> = ({
           ? 'text-gray-500 cursor-not-allowed' 
           : `text-gray-200 hover:bg-gray-600 ${className || ''}`
       }`}
-      onMouseDown={() => {
-        if (!disabled) {
-          onClick();
-        }
-      }}
-      onTouchStart={() => {
-        if (!disabled) {
-          onClick();
-        }
-      }}
-      onClick={(e) => {
-        // Prevent the standard click event since we are handling the action on mouse down/touch start.
-        e.preventDefault();
-      }}
+      onMouseDown={() => { if (!disabled) onClick(); }}
+      onTouchStart={() => { if (!disabled) onClick(); }}
+      onClick={(e) => { e.preventDefault(); }}
     >
       <Icon className={`w-5 h-5 ${disabled ? 'text-gray-500' : ''}`} />
     </button>
-  );
-  const SpinnerIcon = () => (
-    <svg className="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
   );
 
   const renderPlayButtonForSegment = (partIndexInput?: number) => {
@@ -479,15 +459,15 @@ const MessageItem: React.FC<MessageItemProps> = ({
     let isDisabled = false;
     let isPulsing = false;
 
-    const isThisSegmentIndividuallyFetching = isApiFetchingThisSegment(segmentState.uniqueSegmentId);
-    const isThisTheMainButtonOverallFetching = isMainContextButton && isMainButtonMultiFetchingApi(message.id);
+    const isThisSegmentIndividuallyFetching = audio.isApiFetchingThisSegment(segmentState.uniqueSegmentId);
+    const isThisTheMainButtonOverallFetching = isMainContextButton && audio.isMainButtonMultiFetchingApi(message.id);
 
-    if (isThisTheMainButtonOverallFetching) { // Main button, during multi-part fetch
+    if (isThisTheMainButtonOverallFetching) {
         IconComponent = XCircleIcon;
         iconClassName = 'text-red-400 hover:text-red-300';
         title = `Cancel fetching ${numExpectedTtsParts} audio parts`;
         isPulsing = true;
-    } else if (isThisSegmentIndividuallyFetching && !isMainContextButton) { // Individual part fetching
+    } else if (isThisSegmentIndividuallyFetching && !isMainContextButton) {
         IconComponent = XCircleIcon;
         iconClassName = 'text-red-400 hover:text-red-300';
         title = `Cancel audio fetch for Part ${partIndexInput! + 1}`;
@@ -496,7 +476,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         IconComponent = PauseIcon;
         iconClassName = 'text-orange-400';
         title = isMainContextButton ? "Pause" : `Pause Part ${partIndexInput! + 1}`;
-    } else if (segmentState.isAudioLoadingForPlayer) { // Player buffering (not API fetch)
+    } else if (segmentState.isAudioLoadingForPlayer) {
         IconComponent = SpeakerWaveIcon; 
         isPulsing = true; 
         isDisabled = true; 
@@ -508,7 +488,6 @@ const MessageItem: React.FC<MessageItemProps> = ({
         title = `${isMainContextButton ? "" : `Part ${partIndexInput! + 1}: `}Error: ${segmentState.audioErrorMessage || 'Unknown audio error'}. Click to retry.`;
     }
     
-    const finalDisabledState = isDisabled;
     const clickHandler = isMainContextButton ? handleMasterPlayButtonClick : () => handlePartPlayButtonClick(partIndexInput!);
 
     return (
@@ -520,7 +499,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         ${iconClassName}
                         ${isPulsing ? 'animate-pulse' : ''}
                       `}
-            disabled={finalDisabledState}
+            disabled={isDisabled}
         >
             <IconComponent className="w-4 h-4" />
             {partIndexInput !== undefined && <span className="text-xs ml-1">P{partIndexInput+1}</span>}
@@ -646,10 +625,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
                             >
                                 <ArrowDownTrayIcon className="w-3 h-3" />
                             </button>
-                            {attachment.fileUri && onReUploadAttachment && (
+                            {attachment.fileUri && (
                                 <RefreshAttachmentButton
                                     attachment={attachment}
-                                    onReUpload={() => onReUploadAttachment(chatSessionId, message.id, attachment.id)}
+                                    onReUpload={() => chat.handleReUploadAttachment(chat.currentChatSession!.id, message.id, attachment.id)}
                                     disabled={message.isStreaming || isAnyAudioOperationActiveForMessage}
                                 />
                             )}
@@ -751,7 +730,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                             aria-orientation="horizontal"
                             aria-labelledby={`options-menu-button-${message.id}`}
                         >
-                            {showReadModeButton && (
+                            {(chat.currentChatSession?.settings.showReadModeButton) && (
                                 <DropdownMenuItem
                                 onClick={handleReadModeClick}
                                 icon={BookOpenIcon}
@@ -763,9 +742,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                 icon={ClipboardDocumentListIcon}
                                 label="Copy Text"
                             />
-                            {onDownloadAudio && message.content.trim() && !isError && allTtsPartsCached && (
+                            {audio.handleDownloadAudio && message.content.trim() && !isError && allTtsPartsCached && (
                                 <DropdownMenuItem
-                                    onClick={() => { onDownloadAudio(chatSessionId, message.id); setIsOptionsMenuOpen(false); }}
+                                    onClick={() => { audio.handleDownloadAudio(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                     icon={ArrowDownTrayIcon} 
                                     label={"Download Audio"}
                                     disabled={isAnyAudioOperationActiveForMessage} 
@@ -781,29 +760,29 @@ const MessageItem: React.FC<MessageItemProps> = ({
                             )}
                             {!isError && isModel && !message.characterName && ( 
                                 <DropdownMenuItem
-                                    onClick={() => { onRegenerateAIMessage(chatSessionId, message.id); setIsOptionsMenuOpen(false); }}
+                                    onClick={() => { chat.handleRegenerateAIMessage(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                     icon={ArrowPathIcon}
                                     label="Regenerate AI Message"
                                     disabled={isAnyAudioOperationActiveForMessage}
                                 />
                             )}
-                            {isUser && canRegenerateFollowingAI && onRegenerateResponseForUserMessage && !message.characterName && (
+                            {isUser && canRegenerateFollowingAI && !message.characterName && (
                                 <DropdownMenuItem
-                                    onClick={() => { onRegenerateResponseForUserMessage(chatSessionId, message.id); setIsOptionsMenuOpen(false); }}
+                                    onClick={() => { chat.handleRegenerateResponseForUserMessage(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                     icon={ArrowPathIcon}
                                     label="Regenerate AI Message"
                                     disabled={isAnyAudioOperationActiveForMessage}
                                 />
                             )}
                              <DropdownMenuItem
-                                onClick={() => { onDeleteSingleMessage(chatSessionId, message.id); setIsOptionsMenuOpen(false); }}
+                                onClick={() => { chat.handleDeleteSingleMessageOnly(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                 icon={XCircleIcon} 
                                 label="Delete This Message"
                                 className="text-red-400 hover:bg-red-600 hover:text-white"
                                 disabled={isAnyAudioOperationActiveForMessage} 
                             />
                             <DropdownMenuItem
-                                onClick={() => { onAttemptDeleteMessageAndHistory(chatSessionId, message.id); setIsOptionsMenuOpen(false); }}
+                                onClick={() => { ui.requestDeleteConfirmation(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                 icon={TrashIcon} 
                                 label="Delete Message & History"
                                 className="text-red-400 hover:bg-red-600 hover:text-white"

@@ -1,40 +1,35 @@
-
 import React, { useState, useEffect } from 'react';
+import { useChatContext } from '../contexts/ChatContext';
+import { useUIContext } from '../contexts/UIContext';
 import { AICharacter } from '../types';
-import { CloseIcon, PencilIcon, TrashIcon, InfoIcon } from '../constants';
+import { CloseIcon, PencilIcon, TrashIcon, InfoIcon } from './Icons';
 
-interface CharacterManagementModalProps {
-  isOpen: boolean;
-  characters: AICharacter[];
-  onClose: () => void;
-  onAddCharacter: (name: string, systemInstruction: string) => void;
-  onEditCharacter: (id: string, name: string, systemInstruction: string) => void;
-  onDeleteCharacter: (id: string) => void;
-  onOpenContextualInfoModal: (character: AICharacter) => void;
-}
+// No props are needed anymore!
+const CharacterManagementModal: React.FC = () => {
+  const { currentChatSession, handleAddCharacter, handleEditCharacter, handleDeleteCharacter } = useChatContext();
+  const { isCharacterManagementModalOpen, closeCharacterManagementModal, openCharacterContextualInfoModal } = useUIContext();
 
-const CharacterManagementModal: React.FC<CharacterManagementModalProps> = ({
-  isOpen, characters, onClose, onAddCharacter, onEditCharacter, onDeleteCharacter, onOpenContextualInfoModal
-}) => {
   const [editingCharacter, setEditingCharacter] = useState<AICharacter | null>(null);
   const [newCharName, setNewCharName] = useState('');
   const [newCharInstruction, setNewCharInstruction] = useState('');
 
+  const characters = currentChatSession?.aiCharacters || [];
+
   useEffect(() => {
-    if (isOpen) {
+    if (isCharacterManagementModalOpen) {
       setEditingCharacter(null);
       setNewCharName('');
       setNewCharInstruction('');
     }
-  }, [isOpen]);
+  }, [isCharacterManagementModalOpen]);
 
-  if (!isOpen) return null;
+  if (!isCharacterManagementModalOpen) return null;
 
   const handleSave = () => {
     if (editingCharacter) {
-      onEditCharacter(editingCharacter.id, newCharName, newCharInstruction);
+      handleEditCharacter(editingCharacter.id, newCharName, newCharInstruction);
     } else {
-      onAddCharacter(newCharName, newCharInstruction);
+      handleAddCharacter(newCharName, newCharInstruction);
     }
     setNewCharName('');
     setNewCharInstruction('');
@@ -52,7 +47,7 @@ const CharacterManagementModal: React.FC<CharacterManagementModalProps> = ({
       <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-lg max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
         <div className="flex justify-between items-center mb-4 flex-shrink-0">
           <h2 className="text-xl font-semibold">Manage Characters</h2>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-100 rounded-full hover:bg-gray-700"><CloseIcon /></button>
+          <button onClick={closeCharacterManagementModal} className="p-1 text-gray-400 hover:text-gray-100 rounded-full hover:bg-gray-700"><CloseIcon /></button>
         </div>
 
         <div className="mb-6 space-y-3 overflow-y-auto pr-2 flex-grow min-h-0">
@@ -64,9 +59,9 @@ const CharacterManagementModal: React.FC<CharacterManagementModalProps> = ({
                         <p className="text-xs text-gray-400 truncate max-w-xs" title={char.systemInstruction}>{char.systemInstruction}</p>
                     </div>
                     <div className="flex space-x-1.5">
-                        <button onClick={() => onOpenContextualInfoModal(char)} className="p-1.5 text-sky-400 hover:text-sky-300" title="Edit Contextual Info"><InfoIcon className="w-4 h-4"/></button>
+                        <button onClick={() => openCharacterContextualInfoModal(char)} className="p-1.5 text-sky-400 hover:text-sky-300" title="Edit Contextual Info"><InfoIcon className="w-4 h-4"/></button>
                         <button onClick={() => startEdit(char)} className="p-1.5 text-blue-400 hover:text-blue-300" title="Edit Character"><PencilIcon className="w-4 h-4"/></button>
-                        <button onClick={() => onDeleteCharacter(char.id)} className="p-1.5 text-red-400 hover:text-red-300" title="Delete Character"><TrashIcon className="w-4 h-4"/></button>
+                        <button onClick={() => handleDeleteCharacter(char.id)} className="p-1.5 text-red-400 hover:text-red-300" title="Delete Character"><TrashIcon className="w-4 h-4"/></button>
                     </div>
                 </div>
             ))}
@@ -103,7 +98,7 @@ const CharacterManagementModal: React.FC<CharacterManagementModalProps> = ({
         </div>
 
         <div className="mt-6 flex justify-end flex-shrink-0">
-          <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-600 hover:bg-gray-500 rounded-md">Close</button>
+          <button onClick={closeCharacterManagementModal} className="px-4 py-2 text-sm bg-gray-600 hover:bg-gray-500 rounded-md">Close</button>
         </div>
       </div>
     </div>

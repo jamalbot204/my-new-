@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SaveDiskIcon, CheckIcon } from '../constants';
-
+import { SaveDiskIcon, CheckIcon } from './Icons';
 interface ManualSaveButtonProps {
   onManualSave: () => Promise<void>;
   disabled?: boolean;

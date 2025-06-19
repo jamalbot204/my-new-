@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PlayIcon, StopIcon } from '../constants';
+import { PlayIcon, StopIcon } from './Icons';
 
 interface AutoSendControlsProps {
   isAutoSendingActive: boolean;
