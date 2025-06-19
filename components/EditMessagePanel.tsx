@@ -20,11 +20,9 @@ export interface EditMessagePanelDetails {
   attachments?: Attachment[];
 }
 
-// No props are needed anymore!
 const EditMessagePanel: React.FC = () => {
   const { isLoading, handleEditPanelSubmit, handleCancelGeneration } = useChatContext();
-  const ui = useUIContext();
-  const { isEditPanelOpen, editingMessageDetail, closeEditPanel } = ui;
+  const { isEditPanelOpen, editingMessageDetail, closeEditPanel } = useUIContext();
 
   const [editedContent, setEditedContent] = useState('');
   const textareaRef = useAutoResizeTextarea<HTMLTextAreaElement>(editedContent, 300);
@@ -43,8 +41,19 @@ const EditMessagePanel: React.FC = () => {
 
   if (!isEditPanelOpen || !editingMessageDetail) return null;
 
-  const handlePanelSubmitWrapper = (action: EditMessagePanelAction) => {
+  const handleAction = (action: EditMessagePanelAction) => {
+    if (!editingMessageDetail) return;
+    // We now use the main handleEditPanelSubmit from the context for all actions
+    // and let it decide what to do.
     handleEditPanelSubmit(action, editedContent, editingMessageDetail as any);
+  };
+  
+  // A dedicated handler for the cancel button to fix the bug and use the variable.
+  const handleCancelClick = () => {
+    if (isLoading && editingMessageDetail.role === ChatMessageRole.MODEL) {
+      handleCancelGeneration();
+    }
+    closeEditPanel();
   };
   
   const panelTitle = editingMessageDetail.role === ChatMessageRole.USER ? "Edit User Message" : "Edit AI Response";
@@ -68,7 +77,7 @@ const EditMessagePanel: React.FC = () => {
             <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-gray-400" />
             <h2 id="edit-message-panel-title" className="text-lg sm:text-xl font-semibold text-gray-100">{panelTitle}</h2>
           </div>
-          <button onClick={() => handlePanelSubmitWrapper(EditMessagePanelAction.CANCEL)} className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700 disabled:opacity-50" aria-label="Close edit panel" disabled={isLoading && editingMessageDetail.role === ChatMessageRole.MODEL} >
+          <button onClick={handleCancelClick} className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700 disabled:opacity-50" aria-label="Close edit panel">
             <CloseIcon className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
@@ -84,13 +93,13 @@ const EditMessagePanel: React.FC = () => {
             </div>
         )}
         <div className="mt-5 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <button onClick={() => handlePanelSubmitWrapper(EditMessagePanelAction.CANCEL)} className={cancelButtonClass} disabled={isLoading && editingMessageDetail.role === ChatMessageRole.MODEL} aria-label="Cancel edits"><XCircleIcon className="w-4 h-4 mr-1.5" /> Cancel</button>
-          <button onClick={() => handlePanelSubmitWrapper(EditMessagePanelAction.SAVE_LOCALLY)} className={saveLocallyButtonClass} disabled={isLoading || editedContent.trim() === editingMessageDetail.originalContent.trim()} aria-label="Save changes locally"><SaveDiskIcon className="w-4 h-4 mr-1.5"/>Save Locally</button>
-          <button onClick={() => handlePanelSubmitWrapper(EditMessagePanelAction.CONTINUE_PREFIX)} className={continuePrefixButtonClass} disabled={isLoading || editedContent.trim() === ''} aria-label="Continue prefix with AI">
+          <button onClick={handleCancelClick} className={cancelButtonClass} aria-label="Cancel edits"><XCircleIcon className="w-4 h-4 mr-1.5" /> Cancel</button>
+          <button onClick={() => handleAction(EditMessagePanelAction.SAVE_LOCALLY)} className={saveLocallyButtonClass} disabled={isLoading || editedContent.trim() === editingMessageDetail.originalContent.trim()} aria-label="Save changes locally"><SaveDiskIcon className="w-4 h-4 mr-1.5"/>Save Locally</button>
+          <button onClick={() => handleAction(EditMessagePanelAction.CONTINUE_PREFIX)} className={continuePrefixButtonClass} disabled={isLoading || editedContent.trim() === ''} aria-label="Continue prefix with AI">
             {isLoading && editingMessageDetail.role === ChatMessageRole.MODEL ? (<svg className="animate-spin h-4 w-4 mr-1.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>) : <ContinueArrowIcon className="w-4 h-4 mr-1.5"/>}
             {isLoading && editingMessageDetail.role === ChatMessageRole.MODEL ? 'Continuing...' : 'Continue Prefix'}
           </button>
-          <button onClick={() => handlePanelSubmitWrapper(EditMessagePanelAction.SAVE_AND_SUBMIT)} className={saveSubmitButtonClass} disabled={isLoading || editedContent.trim() === ''} aria-label="Save changes and submit for AI response"><SubmitPlayIcon className="w-4 h-4 mr-1.5"/>Save & Submit</button>
+          <button onClick={() => handleAction(EditMessagePanelAction.SAVE_AND_SUBMIT)} className={saveSubmitButtonClass} disabled={isLoading || editedContent.trim() === ''} aria-label="Save changes and submit for AI response"><SubmitPlayIcon className="w-4 h-4 mr-1.5"/>Save & Submit</button>
         </div>
       </div>
     </div>

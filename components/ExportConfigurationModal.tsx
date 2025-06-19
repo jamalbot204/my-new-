@@ -60,7 +60,7 @@ const ExportConfigurationModal: React.FC = () => {
       alert("Please select at least one chat to export.");
       return;
     }
-    chat.handleExportChats(localConfig, selectedChatIds);
+    chat.handleExportChats(selectedChatIds, localConfig);
     ui.closeExportConfigurationModal();
   };
 

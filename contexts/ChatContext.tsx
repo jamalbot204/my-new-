@@ -8,8 +8,10 @@ import { useAppPersistence } from '../hooks/useAppPersistence';
 import { useSidebarActions } from '../hooks/useSidebarActions';
 import { useChatInteractions } from '../hooks/useChatInteractions';
 import { useAutoFetchAudio } from '../hooks/useAutoFetchAudio';
-import { useAutoSend } from '../hooks/useAutoSend';
-import { useUIContext } from './UIContext'; // We will use this to interact with UI state
+import { useAutoSend, UseAutoSendReturn } from '../hooks/useAutoSend';
+import { useUIContext } from './UIContext';
+import { EditMessagePanelAction, EditMessagePanelDetails } from '../components/EditMessagePanel';
+
 
 // Define the shape of the Chat context data
 interface ChatContextType {
@@ -33,6 +35,7 @@ interface ChatContextType {
   handleCancelGeneration: () => Promise<void>;
   handleRegenerateAIMessage: (sessionId: string, aiMessageIdToRegenerate: string) => Promise<void>;
   handleRegenerateResponseForUserMessage: (sessionId: string, userMessageId: string) => Promise<void>;
+  handleEditPanelSubmit: (action: EditMessagePanelAction, newContent: string, details: EditMessagePanelDetails) => Promise<void>;
 
   // From useAiCharacters
   handleToggleCharacterMode: () => Promise<void>;
@@ -73,7 +76,7 @@ interface ChatContextType {
   handleReUploadAttachment: (sessionId: string, messageId: string, attachmentId: string) => Promise<void>;
   
   // From useAutoSend
-  autoSendHook: any; // Simplified for brevity, could be fully typed
+  autoSendHook: UseAutoSendReturn;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -183,7 +186,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     ui.showToast("Character deleted!", "success");
   };
   
-  const value = {
+  const value: ChatContextType = {
     chatHistory, setChatHistory, currentChatId, setCurrentChatId, currentChatSession,
     updateChatSession, handleNewChat, handleSelectChat, handleDeleteChat, isLoadingData,
     ...gemini,
@@ -192,7 +195,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     ...importExport,
     ...persistence,
     ...sidebarActions,
-    ...chatInteractions,
+    handleDeleteMessageAndSubsequent: chatInteractions.handleDeleteMessageAndSubsequent,
+    handleDeleteSingleMessageOnly: chatInteractions.handleDeleteSingleMessageOnly,
+    handleLoadMoreDisplayMessages: chatInteractions.handleLoadMoreDisplayMessages,
+    handleLoadAllDisplayMessages: chatInteractions.handleLoadAllDisplayMessages,
+    handleClearApiLogs: chatInteractions.handleClearApiLogs,
+    handleClearChatCacheForCurrentSession: chatInteractions.handleClearChatCacheForCurrentSession,
+    handleReUploadAttachment: chatInteractions.handleReUploadAttachment,
+    handleActualCopyMessage: chatInteractions.handleActualCopyMessage,
     autoSendHook: autoSend,
   };
 
