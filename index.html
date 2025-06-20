@@ -1,12 +1,11 @@
 
-<!DOCTYPE html>
+z<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gemini Chat Studio</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp,container-queries"></script> <!-- Updated Tailwind CDN -->
-  <style>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp,container-queries"></script> <style>
     /* Custom scrollbar for webkit browsers */
     ::-webkit-scrollbar {
       width: 8px;
@@ -159,6 +158,28 @@
       border-radius: 0.15em;
     }
 
+    html {
+      height: 100%;
+      box-sizing: border-box; /* Apply box-sizing to html */
+      overflow: hidden; /* Prevent html element from showing scrollbars */
+    }
+    body {
+      height: 100%; /* Ensure body takes full height of html */
+      margin: 0; /* Reset default margin */
+      padding: 0; /* Reset default padding */
+      overflow: hidden; /* Prevent body from showing scrollbars */
+      box-sizing: border-box; /* Inherit box-sizing */
+    }
+    #root {
+      height: 100%; /* Ensure #root takes full height of body */
+      overflow: hidden; /* Prevent #root from showing scrollbars, just in case */
+      box-sizing: border-box; /* Inherit box-sizing */
+    }
+    /* Apply box-sizing to all elements for consistency */
+    *, *::before, *::after {
+      box-sizing: inherit;
+    }
+    
   </style>
 <script type="importmap">
 {
@@ -172,7 +193,8 @@
     "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@15.5.0",
     "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@15.5.0/",
     "mark.js/": "https://esm.sh/mark.js@^8.11.1/",
-    "mark.js": "https://esm.sh/mark.js@^8.11.1"
+    "mark.js": "https://esm.sh/mark.js@^8.11.1",
+    "react-window": "https://esm.sh/react-window@^1.8.11"
   }
 }
 </script>

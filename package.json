@@ -15,11 +15,13 @@
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
     "react-syntax-highlighter": "15.5.0",
-    "mark.js": "^8.11.1"
+    "mark.js": "^8.11.1",
+    "react-window": "^1.8.10"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "typescript": "~5.7.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "@types/react-window": "^1.8.8"
   }
 }

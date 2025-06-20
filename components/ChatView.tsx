@@ -10,6 +10,7 @@ import ManualSaveButton from './ManualSaveButton';
 import { useAttachmentHandler } from '../hooks/useAttachmentHandler';
 import useAutoResizeTextarea from '../hooks/useAutoResizeTextarea';
 import { getModelDisplayName } from '../services/utils';
+import { VariableSizeList as List } from 'react-window';
 
 interface ChatViewProps {
     onEnterReadMode: (content: string) => void;
@@ -27,13 +28,16 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 
     const [inputMessage, setInputMessage] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const messageListRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<List>(null);
+    const sizeMap = useRef({});
+    const messageListContainerRef = useRef<HTMLDivElement>(null);
+    const [listHeight, setListHeight] = useState(600);
+
+
     const textareaRef = useAutoResizeTextarea<HTMLTextAreaElement>(inputMessage);
     const [showLoadButtonsUI, setShowLoadButtonsUI] = useState(false);
 
     const shouldPreserveScrollRef = useRef<boolean>(false);
-    const prevScrollHeightRef = useRef<number>(0);
     const prevVisibleMessagesLengthRef = useRef<number>(0);
     const prevChatIdRef = useRef<string | null | undefined>(null);
 
@@ -41,12 +45,11 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     const [characters, setCharactersState] = useState<AICharacter[]>(chat.currentChatSession?.aiCharacters || []);
     const [isReorderingActive, setIsReorderingActive] = useState(false);
     const draggedCharRef = useRef<AICharacter | null>(null);
-    const dropTargetRef = useRef<HTMLButtonElement | null>(null);
     const characterButtonContainerRef = useRef<HTMLDivElement | null>(null);
     const [isInfoInputModeActive, setIsInfoInputModeActive] = useState(false);
 
     const attachmentHandler = useAttachmentHandler({
-        logApiRequestCallback: () => { }, // Placeholder, as logging will be implicit
+        logApiRequestCallback: () => { },
         isInfoInputModeActive,
     });
     const {
@@ -63,29 +66,34 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 
     const visibleMessages = chat.currentChatSession?.messages.slice(-(chat.messagesToDisplayConfig[chat.currentChatId!] ?? 10)) || [];
     const totalMessagesInSession = chat.currentChatSession ? chat.currentChatSession.messages.length : 0;
+    
+    const [expandedMessages, setExpandedMessages] = useState({});
+
+    useLayoutEffect(() => {
+        const updateHeight = () => {
+            if (messageListContainerRef.current) {
+                setListHeight(messageListContainerRef.current.clientHeight);
+            }
+        };
+        updateHeight();
+        window.addEventListener('resize', updateHeight);
+        return () => window.removeEventListener('resize', updateHeight);
+    }, []);
 
     useImperativeHandle(ref, () => ({
         scrollToMessage: (messageId: string) => {
-            const messageElement = messageListRef.current?.querySelector(`#message-item-${messageId}`);
-            if (messageElement) {
-                messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                messageElement.classList.add('ring-2', 'ring-blue-400', 'transition-all', 'duration-1000', 'ease-out');
-                setTimeout(() => {
-                    messageElement.classList.remove('ring-2', 'ring-blue-400', 'transition-all', 'duration-1000', 'ease-out');
-                }, 2500);
+            const index = visibleMessages.findIndex(m => m.id === messageId);
+            if (index !== -1 && listRef.current) {
+                listRef.current.scrollToItem(index, 'center');
             } else {
-                if (chat.currentChatSession && visibleMessages.length < totalMessagesInSession) {
+                 if (chat.currentChatSession && visibleMessages.length < totalMessagesInSession) {
                     const isMessageInFullList = chat.currentChatSession.messages.some(m => m.id === messageId);
                     if (isMessageInFullList) {
                         handleLoadAll();
                         setTimeout(() => {
-                            const newAttemptMessageElement = messageListRef.current?.querySelector(`#message-item-${messageId}`);
-                            if (newAttemptMessageElement) {
-                                newAttemptMessageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                newAttemptMessageElement.classList.add('ring-2', 'ring-blue-400', 'transition-all', 'duration-1000', 'ease-out');
-                                setTimeout(() => {
-                                    newAttemptMessageElement.classList.remove('ring-2', 'ring-blue-400', 'transition-all', 'duration-1000', 'ease-out');
-                                }, 2500);
+                            const newIndex = chat.currentChatSession?.messages.findIndex(m => m.id === messageId);
+                            if (newIndex && newIndex !== -1 && listRef.current) {
+                                listRef.current.scrollToItem(newIndex, 'center');
                             }
                         }, 500);
                     }
@@ -102,29 +110,30 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
         }
     }, [chat.currentChatSession?.aiCharacters, chat.currentChatSession?.isCharacterModeActive, isInfoInputModeActive]);
 
-
+    useEffect(() => {
+        if (listRef.current) {
+            listRef.current.resetAfterIndex(0);
+        }
+    }, [visibleMessages, expandedMessages]);
+    
     useLayoutEffect(() => {
-        const listElement = messageListRef.current;
-        if (!listElement) return;
+        if (listRef.current) {
+            const isNewChatOrSwitched = prevChatIdRef.current !== chat.currentChatId;
+            const messagesLengthChanged = prevVisibleMessagesLengthRef.current !== visibleMessages.length;
 
-        const isNewChatOrSwitched = prevChatIdRef.current !== chat.currentChatId;
-        const messagesLengthChanged = prevVisibleMessagesLengthRef.current !== visibleMessages.length;
-        
-        if (isNewChatOrSwitched) {
-            listElement.scrollTop = listElement.scrollHeight;
-        } else if (shouldPreserveScrollRef.current && messagesLengthChanged) {
-            listElement.scrollTop = listElement.scrollHeight - prevScrollHeightRef.current;
-            shouldPreserveScrollRef.current = false;
-        } else if (messagesLengthChanged && visibleMessages.length > prevVisibleMessagesLengthRef.current) {
-            const lastMessage = visibleMessages[visibleMessages.length - 1];
-            const isStreamingOrNewOwnMessage = lastMessage?.isStreaming || (lastMessage?.role === ChatMessageRole.USER && prevVisibleMessagesLengthRef.current < visibleMessages.length);
-            if (isStreamingOrNewOwnMessage && (listElement.scrollHeight - listElement.scrollTop - listElement.clientHeight < 200)) {
-                listElement.scrollTop = listElement.scrollHeight;
+            if (isNewChatOrSwitched || (messagesLengthChanged && !shouldPreserveScrollRef.current)) {
+                // When loading for the first time or sending a message, scroll to the bottom.
+                listRef.current.scrollToItem(visibleMessages.length - 1, 'end');
+            }
+            if(shouldPreserveScrollRef.current) {
+                 // When "Show More" is clicked, we don't auto-scroll.
+                 // The list preserves the scroll position relative to the top item.
+                shouldPreserveScrollRef.current = false;
             }
         }
         prevVisibleMessagesLengthRef.current = visibleMessages.length;
         prevChatIdRef.current = chat.currentChatId;
-    }, [visibleMessages, chat.currentChatId]);
+    }, [visibleMessages.length, chat.currentChatId]);
 
 
     const handleSendMessageClick = async (characterId?: string) => {
@@ -162,15 +171,7 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
         if (isInfoInputModeActive && temporaryContextFlag) {
             setIsInfoInputModeActive(false);
         }
-
-        prevScrollHeightRef.current = messageListRef.current?.scrollHeight || 0;
-        shouldPreserveScrollRef.current = false;
-        // Corrected arguments for handleSendMessage:
-        // 1. promptContent: string
-        // 2. attachments?: Attachment[]
-        // 3. historyContextOverride?: ChatMessage[]
-        // 4. characterIdForAPICall?: string
-        // 5. isTemporaryContext?: boolean
+        
         await chat.handleSendMessage(currentInputMessageValue, attachmentsToSend, undefined, characterId, temporaryContextFlag);
     };
 
@@ -178,8 +179,6 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
         if (chat.isLoading || !chat.currentChatSession || chat.currentChatSession.messages.length === 0 || isCharacterMode || chat.autoSendHook.isAutoSendingActive) return;
         setInputMessage('');
         resetSelectedFiles();
-        prevScrollHeightRef.current = messageListRef.current?.scrollHeight || 0;
-        shouldPreserveScrollRef.current = false;
         await chat.handleContinueFlow();
     };
 
@@ -196,20 +195,16 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
         setInputMessage(e.target.value);
     };
 
-    const handleScroll = () => {
-        if (messageListRef.current) {
-            const { scrollTop } = messageListRef.current;
-            if (scrollTop < 5 && chat.currentChatSession && visibleMessages.length < totalMessagesInSession) {
-                setShowLoadButtonsUI(true);
-            } else {
-                setShowLoadButtonsUI(false);
-            }
+    const handleScroll = ({ scrollOffset }) => {
+        if (scrollOffset < 50 && chat.currentChatSession && visibleMessages.length < totalMessagesInSession) {
+            setShowLoadButtonsUI(true);
+        } else {
+            setShowLoadButtonsUI(false);
         }
     };
-
+    
     const handleLoadMore = (count: number) => {
         if (!chat.currentChatSession) return;
-        prevScrollHeightRef.current = messageListRef.current?.scrollHeight || 0;
         shouldPreserveScrollRef.current = true;
         chat.handleLoadMoreDisplayMessages(chat.currentChatSession.id, count);
         setShowLoadButtonsUI(false);
@@ -217,7 +212,6 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 
     const handleLoadAll = () => {
         if (!chat.currentChatSession) return;
-        prevScrollHeightRef.current = messageListRef.current?.scrollHeight || 0;
         shouldPreserveScrollRef.current = true;
         chat.handleLoadAllDisplayMessages(chat.currentChatSession.id);
         setShowLoadButtonsUI(false);
@@ -282,8 +276,8 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
         const [removed] = currentChars.splice(draggedIndex, 1);
         currentChars.splice(targetIndex, 0, removed);
         
-        setCharactersState(currentChars); // Update local state immediately for responsiveness
-        await chat.handleReorderCharacters(currentChars); // Update context and persist
+        setCharactersState(currentChars);
+        await chat.handleReorderCharacters(currentChars);
         draggedCharRef.current = null;
     };
 
@@ -302,7 +296,55 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
             chat.handleCancelGeneration();
         }
     };
+    
+    const setRowHeight = useCallback((index, size) => {
+        if (sizeMap.current[index] !== size) {
+            sizeMap.current = { ...sizeMap.current, [index]: size };
+            if (listRef.current) {
+                listRef.current.resetAfterIndex(index);
+            }
+        }
+    }, []);
+    
+    const getRowHeight = index => sizeMap.current[index] || 120; // Default estimate
 
+    const Row = ({ index, style }) => {
+        const rowRef = useRef<HTMLDivElement>(null);
+        
+        const onSizeChange = useCallback(() => {
+            if (rowRef.current) {
+                setRowHeight(index, rowRef.current.getBoundingClientRect().height);
+            }
+        }, [index]);
+
+        useEffect(() => {
+            if (rowRef.current) {
+                 setRowHeight(index, rowRef.current.getBoundingClientRect().height);
+            }
+        }, [onSizeChange, index]);
+
+        const msg = visibleMessages[index];
+        const fullMessageList = chat.currentChatSession!.messages;
+        const currentMessageIndexInFullList = fullMessageList.findIndex(m => m.id === msg.id);
+        const nextMessageInFullList = (currentMessageIndexInFullList !== -1 && currentMessageIndexInFullList < fullMessageList.length - 1) ? fullMessageList[currentMessageIndexInFullList + 1] : null;
+        const canRegenerateFollowingAI = msg.role === ChatMessageRole.USER && nextMessageInFullList !== null && (nextMessageInFullList.role === ChatMessageRole.MODEL || nextMessageInFullList.role === ChatMessageRole.ERROR) && !isCharacterMode;
+
+        return (
+            <div style={style}>
+                 <div ref={rowRef}>
+                    <MessageItem 
+                        key={msg.id} 
+                        message={msg} 
+                        canRegenerateFollowingAI={canRegenerateFollowingAI} 
+                        chatScrollContainerRef={messageListContainerRef} 
+                        onEnterReadMode={onEnterReadMode}
+                        onSizeChange={onSizeChange} 
+                    />
+                 </div>
+            </div>
+        );
+    }
+    
     return (
         <div className="flex flex-col h-full bg-gray-800">
             <header className="p-3 sm:p-4 border-b border-gray-700 flex items-center space-x-3 sticky top-0 bg-gray-800 z-20">
@@ -338,22 +380,25 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 )}
             </header>
 
-            <div ref={messageListRef} onScroll={handleScroll} className="flex-1 p-4 sm:p-6 space-y-0 overflow-y-auto relative" role="log" aria-live="polite">
+            <div ref={messageListContainerRef} className="flex-1 relative" role="log" aria-live="polite">
                 {chat.currentChatSession && showLoadButtonsUI && visibleMessages.length < totalMessagesInSession && (
-                    <div className="sticky top-2 left-1/2 transform -translate-x-1/2 z-10 flex flex-col items-center space-y-2 my-2">
+                    <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10 flex flex-col items-center space-y-2 my-2">
                         {amountToLoad > 0 && <button onClick={() => handleLoadMore(amountToLoad)} className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-transform transform hover:scale-105">Show {amountToLoad} More</button>}
                         <button onClick={handleLoadAll} className="px-4 py-2 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded-full shadow-lg transition-transform transform hover:scale-105">Show All History ({totalMessagesInSession - visibleMessages.length} more)</button>
                     </div>
                 )}
                 {chat.currentChatSession ? (
                     visibleMessages.length > 0 ? (
-                        visibleMessages.map((msg) => {
-                            const fullMessageList = chat.currentChatSession!.messages;
-                            const currentMessageIndexInFullList = fullMessageList.findIndex(m => m.id === msg.id);
-                            const nextMessageInFullList = (currentMessageIndexInFullList !== -1 && currentMessageIndexInFullList < fullMessageList.length - 1) ? fullMessageList[currentMessageIndexInFullList + 1] : null;
-                            const canRegenerateFollowingAI = msg.role === ChatMessageRole.USER && nextMessageInFullList !== null && (nextMessageInFullList.role === ChatMessageRole.MODEL || nextMessageInFullList.role === ChatMessageRole.ERROR) && !isCharacterMode;
-                            return <MessageItem key={msg.id} message={msg} canRegenerateFollowingAI={canRegenerateFollowingAI} chatScrollContainerRef={messageListRef} onEnterReadMode={onEnterReadMode} />;
-                        })
+                        <List
+                            ref={listRef}
+                            height={listHeight}
+                            itemCount={visibleMessages.length}
+                            itemSize={getRowHeight}
+                            width="100%"
+                            onScroll={handleScroll}
+                        >
+                            {Row}
+                        </List>
                     ) : (
                         <div className="text-center text-gray-500 italic mt-10">
                             {isCharacterMode && characters.length === 0 ? "Add some characters and start the scene!" : (isCharacterMode ? "Select a character to speak." : "Start the conversation!")}
@@ -362,7 +407,6 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 ) : (
                     <div className="text-center text-gray-500 italic mt-10">Select a chat from the history or start a new one.</div>
                 )}
-                <div ref={messagesEndRef} />
             </div>
             
             <div className="sticky bottom-0 z-20 bg-gray-800 flex flex-col">
