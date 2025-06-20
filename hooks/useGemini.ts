@@ -2,8 +2,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatSession, ChatMessage, ChatMessageRole, GeminiSettings, Attachment, AICharacter, HarmCategory, HarmBlockThreshold, SafetySetting, FullResponseData, UserMessageInput, LogApiRequestCallback, UseGeminiReturn, GeminiHistoryEntry } from '../types';
 import { getFullChatResponse, generateMimicUserResponse, clearCachedChat as geminiServiceClearCachedChat, mapMessagesToFlippedRoleGeminiHistory } from '../services/geminiService';
-import * as dbService from '../services/dbService';
-import { METADATA_KEYS } from '../services/dbService';
 import { DEFAULT_SETTINGS } from '../constants';
 import { EditMessagePanelAction, EditMessagePanelDetails } from '../components/EditMessagePanel';
 import { findPrecedingUserMessageIndex, getHistoryUpToMessage } from '../services/utils'; // Import helpers
