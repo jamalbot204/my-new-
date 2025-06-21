@@ -230,7 +230,7 @@ export interface AudioPlayerState {
 
 export interface UseGeminiReturn {
   isLoading: boolean;
-  currentGenerationTimeDisplay: string;
+  generationStartTimeRef: React.RefObject<number | null>;
   lastMessageHadAttachments: boolean;
   logApiRequest: LogApiRequestCallback;
   handleSendMessage: (

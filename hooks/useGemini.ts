@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatSession, ChatMessage, ChatMessageRole, GeminiSettings, Attachment, AICharacter, HarmCategory, HarmBlockThreshold, SafetySetting, FullResponseData, UserMessageInput, LogApiRequestCallback, UseGeminiReturn, GeminiHistoryEntry } from '../types';
 import { getFullChatResponse, generateMimicUserResponse, clearCachedChat as geminiServiceClearCachedChat, mapMessagesToFlippedRoleGeminiHistory } from '../services/geminiService';
@@ -23,7 +22,6 @@ export function useGemini({
   setMessageGenerationTimes,
 }: UseGeminiProps): UseGeminiReturn {
   const [isLoading, setIsLoading] = useState(false);
-  const [currentGenerationTimeDisplay, setCurrentGenerationTimeDisplay] = useState<string>("0.0s");
   const [lastMessageHadAttachments, setLastMessageHadAttachments] = useState(false);
 
   const generationStartTimeRef = useRef<number | null>(null);
@@ -38,24 +36,8 @@ export function useGemini({
 
 
   useEffect(() => {
-    let intervalId: number | undefined;
-    if (isLoading && generationStartTimeRef.current) {
-      setCurrentGenerationTimeDisplay("0.0s");
-      intervalId = window.setInterval(() => {
-        if (generationStartTimeRef.current !== null) { // Changed: Explicit null check
-          const elapsedSeconds = (Date.now() - generationStartTimeRef.current) / 1000; // Changed: Removed !
-          setCurrentGenerationTimeDisplay(`${elapsedSeconds.toFixed(1)}s`);
-        }
-      }, 100);
-    } else {
-      generationStartTimeRef.current = null;
-      if (!isLoading) {
-          setCurrentGenerationTimeDisplay("0.0s");
-      }
-    }
-    return () => {
-      window.clearInterval(intervalId);
-    };
+    // This useEffect is now empty, as the timer logic has been moved.
+    // It is kept for potential future use if needed.
   }, [isLoading]);
 
   useEffect(() => {
@@ -109,7 +91,6 @@ export function useGemini({
       abortControllerRef.current.abort();
 
       setIsLoading(false);
-      setCurrentGenerationTimeDisplay("0.0s");
       generationStartTimeRef.current = null;
       setLastMessageHadAttachments(false);
       onFullResponseCalledForPendingMessageRef.current = false;
@@ -226,7 +207,6 @@ export function useGemini({
     // 4. Update session for UI (locally) - This adds the user's turn and AI placeholder to the UI
     generationStartTimeRef.current = Date.now();
     setIsLoading(true);
-    setCurrentGenerationTimeDisplay("0.0s");
     abortControllerRef.current = new AbortController();
 
     const modelMessageId = `msg-${Date.now()}-model-${Math.random().toString(36).substring(2,7)}`;
@@ -399,7 +379,6 @@ export function useGemini({
     setLastMessageHadAttachments(false);
     generationStartTimeRef.current = Date.now();
     setIsLoading(true);
-    setCurrentGenerationTimeDisplay("0.0s");
     abortControllerRef.current = new AbortController();
 
     const lastMessage = sessionToUpdate.messages[sessionToUpdate.messages.length - 1];
@@ -596,7 +575,6 @@ export function useGemini({
 
     generationStartTimeRef.current = Date.now();
     setIsLoading(true);
-    setCurrentGenerationTimeDisplay("0.0s");
     abortControllerRef.current = new AbortController();
 
     const updatedAiMessagePlaceholder: ChatMessage = {
@@ -833,7 +811,6 @@ export function useGemini({
 
         generationStartTimeRef.current = Date.now();
         setIsLoading(true);
-        setCurrentGenerationTimeDisplay("0.0s");
         abortControllerRef.current = new AbortController();
 
         const updatedAiMessagePlaceholder: ChatMessage = {
@@ -966,7 +943,7 @@ export function useGemini({
 
   return {
     isLoading,
-    currentGenerationTimeDisplay,
+    generationStartTimeRef,
     lastMessageHadAttachments,
     logApiRequest: logApiRequestDirectly,
     handleSendMessage,

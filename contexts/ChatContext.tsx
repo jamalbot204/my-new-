@@ -30,7 +30,7 @@ interface ChatContextType {
 
   // From useGemini (and wrapped by useChatInteractions for handleEditPanelSubmit)
   isLoading: boolean;
-  currentGenerationTimeDisplay: string;
+  generationStartTimeRef: React.RefObject<number | null>;
   handleSendMessage: (promptContent: string, attachments?: Attachment[], historyContextOverride?: ChatMessage[], characterIdForAPICall?: string, isTemporaryContext?: boolean) => Promise<void>;
   handleContinueFlow: () => Promise<void>;
   handleCancelGeneration: () => Promise<void>;
@@ -193,7 +193,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // From useGemini (some are wrapped by useChatInteractions)
     isLoading: gemini.isLoading,
-    currentGenerationTimeDisplay: gemini.currentGenerationTimeDisplay,
+    generationStartTimeRef: gemini.generationStartTimeRef,
     handleSendMessage: gemini.handleSendMessage,
     handleContinueFlow: gemini.handleContinueFlow,
     handleCancelGeneration: gemini.handleCancelGeneration,

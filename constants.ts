@@ -26,7 +26,7 @@ export const DEFAULT_SAFETY_SETTINGS: SafetySetting[] = [
 export const INITIAL_MESSAGES_COUNT = 10; // Default initial messages for chats if not overridden
 export const LOAD_MORE_MESSAGES_COUNT = 50;
 export const MAX_WORDS_PER_TTS_SEGMENT = 400; // Max words before splitting TTS, and max per segment.
-export const MESSAGE_CONTENT_SNIPPET_THRESHOLD = 350; // Characters
+// MESSAGE_CONTENT_SNIPPET_THRESHOLD removed
 
 export const TTS_MODELS: { id: TTSModelId; name: string }[] = [
     { id: 'gemini-2.5-flash-preview-tts', name: 'Gemini 2.5 Flash TTS' },

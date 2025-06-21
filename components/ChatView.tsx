@@ -12,6 +12,33 @@ import useAutoResizeTextarea from '../hooks/useAutoResizeTextarea';
 import { getModelDisplayName } from '../services/utils';
 import { VariableSizeList as List } from 'react-window';
 
+const TimerDisplay: React.FC<{ startTime: number | null }> = ({ startTime }) => {
+  const [time, setTime] = useState("0.0s");
+
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const updateTimer = () => {
+      if (startTime) {
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        setTime(`${elapsedSeconds.toFixed(1)}s`);
+        animationFrameId = requestAnimationFrame(updateTimer);
+      }
+    };
+
+    if (startTime) {
+      setTime("0.0s"); // Reset on new start
+      animationFrameId = requestAnimationFrame(updateTimer);
+    }
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [startTime]);
+
+  return <span>({time})</span>;
+};
+
 interface ChatViewProps {
     onEnterReadMode: (content: string) => void;
 }
@@ -19,6 +46,8 @@ interface ChatViewProps {
 export interface ChatViewHandles {
     scrollToMessage: (messageId: string) => void;
 }
+
+const SCROLL_NEAR_BOTTOM_THRESHOLD = 50; // Pixels from bottom to be considered "at bottom"
 
 const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     onEnterReadMode,
@@ -40,6 +69,7 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     const shouldPreserveScrollRef = useRef<boolean>(false);
     const prevVisibleMessagesLengthRef = useRef<number>(0);
     const prevChatIdRef = useRef<string | null | undefined>(null);
+    const isUserNearBottomRef = useRef(true); // Assume user starts near bottom
 
     const isCharacterMode = chat.currentChatSession?.isCharacterModeActive || false;
     const [characters, setCharactersState] = useState<AICharacter[]>(chat.currentChatSession?.aiCharacters || []);
@@ -117,23 +147,39 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     }, [visibleMessages, expandedMessages]);
     
     useLayoutEffect(() => {
-        if (listRef.current) {
+        if (listRef.current && messageListContainerRef.current) {
             const isNewChatOrSwitched = prevChatIdRef.current !== chat.currentChatId;
             const newMessagesCount = visibleMessages.length;
             const oldMessagesCount = prevVisibleMessagesLengthRef.current;
             const messagesLengthChanged = newMessagesCount !== oldMessagesCount;
+            // newMessagesAddedAtEnd checks if messages were added, it's not a "load more" action,
+            // and it's not the very first message of a new chat (handled by isNewChatOrSwitched).
+            const newMessagesAddedAtEnd = messagesLengthChanged && newMessagesCount > oldMessagesCount && !shouldPreserveScrollRef.current && !isNewChatOrSwitched;
 
-            if (isNewChatOrSwitched || (messagesLengthChanged && !shouldPreserveScrollRef.current)) {
-                // Sent a message or switched chats, scroll to bottom
-                listRef.current.scrollToItem(newMessagesCount - 1, 'end');
+            if (isNewChatOrSwitched) {
+                // Switched chats or first message, scroll to bottom
+                if (newMessagesCount > 0) {
+                  listRef.current.scrollToItem(newMessagesCount - 1, 'end');
+                }
+                isUserNearBottomRef.current = true; 
+            } else if (newMessagesAddedAtEnd) {
+                // New messages added at the end (e.g., user sent or AI replied)
+                if (isUserNearBottomRef.current) {
+                    listRef.current.scrollToItem(newMessagesCount - 1, 'end');
+                } else {
+                    // User was scrolled up, do nothing to preserve scroll position.
+                    // react-window should handle maintaining the view on current items.
+                }
             } else if (messagesLengthChanged && shouldPreserveScrollRef.current) {
-                // Prepended messages ("Show More"), maintain scroll position
+                // Prepended messages ("Show More"), maintain scroll position relative to the top
                 const numPrepended = newMessagesCount - oldMessagesCount;
                 if (numPrepended > 0) {
-                    listRef.current.scrollToItem(numPrepended, 'start');
+                    // Scroll to the first of the newly prepended items
+                    listRef.current.scrollToItem(numPrepended -1 , 'start'); 
                 }
                 shouldPreserveScrollRef.current = false;
             }
+            // If no specific scroll condition is met, the view should remain stable.
         }
         prevVisibleMessagesLengthRef.current = visibleMessages.length;
         prevChatIdRef.current = chat.currentChatId;
@@ -141,12 +187,9 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 
 
     const handleSendMessageClick = async (characterId?: string) => {
-        const currentInputMessageValue = inputMessage; // Capture before clearing
+        const currentInputMessageValue = inputMessage; 
         const attachmentsToSend = getValidAttachmentsToSend();
         
-        // This flag determines if the user's utterance (promptContent) should be saved as a UI message.
-        // True = DO NOT SAVE user message to UI (e.g., for AICharacter.contextualInfo).
-        // False = DO SAVE user message to UI (e.g., normal message, or yellow "Info" button with text).
         let skipSavingUserMessageToUI = false;
         let messageToSendToGemini = currentInputMessageValue;
 
@@ -165,49 +208,36 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 return;
             }
 
-            // New behavior: Use AICharacter.contextualInfo if main input is empty
             if (currentInputMessageValue.trim() === '' && attachmentsToSend.length === 0) {
                 const characterToSpeak = characters.find(c => c.id === characterId);
                 if (characterToSpeak && characterToSpeak.contextualInfo && characterToSpeak.contextualInfo.trim() !== '') {
                     messageToSendToGemini = characterToSpeak.contextualInfo;
-                    skipSavingUserMessageToUI = true; // Don't save this contextualInfo as a user message
+                    skipSavingUserMessageToUI = true; 
                 }
-                // If input is empty AND character has no (or empty) contextualInfo,
-                // messageToSendToGemini remains empty, skipSavingUserMessageToUI remains false.
-                // An empty user message bubble will be created.
             } else if (isInfoInputModeActive && currentInputMessageValue.trim() !== '') {
-                // Yellow "Info" button mode with text. This text SHOULD be saved as a user message.
-                // So, skipSavingUserMessageToUI remains false.
-                // messageToSendToGemini is already currentInputMessageValue.
+                // Info button mode with text - will be saved.
             }
-            // If none of the above, it's a regular character message with input, skipSavingUserMessageToUI remains false.
-
-        } else if (!isCharacterMode) { // Standard mode (not character)
+        } else if (!isCharacterMode) { 
             if (currentInputMessageValue.trim() === '' && attachmentsToSend.length === 0) {
-                return; // Nothing to send
+                return; 
             }
-            // messageToSendToGemini is currentInputMessageValue
-            // skipSavingUserMessageToUI is false
-        } else { // Character mode is false, but characterId might be present (should not happen) or no characterId.
-            return; // Invalid state or nothing to do.
+        } else { 
+            return; 
         }
-
+        isUserNearBottomRef.current = true; // Assume user wants to see their new message
         setInputMessage('');
         resetSelectedFiles();
         
-        // Toggle off "Info Input Mode" if it was active and user actually typed something
-        // and it wasn't the AICharacter.contextualInfo flow.
         if (isInfoInputModeActive && currentInputMessageValue.trim() !== '' && !skipSavingUserMessageToUI) {
             setIsInfoInputModeActive(false);
         }
         
-        // Pass `skipSavingUserMessageToUI` as `isTemporaryContext` to useGemini.
-        // `isTemporaryContext: true` in useGemini means "do not add user message to UI".
         await chat.handleSendMessage(messageToSendToGemini, attachmentsToSend, undefined, characterId, skipSavingUserMessageToUI);
     };
 
     const handleContinueFlowClick = async () => {
         if (chat.isLoading || !chat.currentChatSession || chat.currentChatSession.messages.length === 0 || isCharacterMode || chat.autoSendHook.isAutoSendingActive) return;
+        isUserNearBottomRef.current = true; // Assume user wants to see the continued flow
         setInputMessage('');
         resetSelectedFiles();
         await chat.handleContinueFlow();
@@ -227,6 +257,22 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     };
 
     const handleScroll = ({ scrollOffset }) => {
+        if (listRef.current && listRef.current._outerRef && messageListContainerRef.current) {
+            const scrollableView = listRef.current._outerRef;
+            const scrollHeight = scrollableView.scrollHeight;
+            const clientHeight = listHeight; // This is the height of the List component's viewport
+    
+            if ((scrollHeight - scrollOffset - clientHeight) < SCROLL_NEAR_BOTTOM_THRESHOLD) {
+                isUserNearBottomRef.current = true;
+            } else {
+                isUserNearBottomRef.current = false;
+            }
+        } else {
+            // Fallback if refs aren't ready - default to true to ensure new messages are seen.
+             isUserNearBottomRef.current = true;
+        }
+    
+        // Existing logic for load more buttons:
         if (scrollOffset < 50 && chat.currentChatSession && visibleMessages.length < totalMessagesInSession) {
             setShowLoadButtonsUI(true);
         } else {
@@ -262,11 +308,9 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     const amountToLoad = Math.min(LOAD_MORE_MESSAGES_COUNT, totalMessagesInSession - visibleMessages.length);
     const hasValidInputForMainSend = inputMessage.trim() !== '' || getValidAttachmentsToSend().length > 0;
     
-    const loadingMessageText = chat.isLoading
-        ? chat.autoSendHook.isAutoSendingActive
-            ? `Auto-sending: ${chat.autoSendHook.autoSendRemaining} left... (${chat.currentGenerationTimeDisplay})`
-            : `Gemini is thinking... (${chat.currentGenerationTimeDisplay})`
-        : "";
+    const loadingMessageText = chat.autoSendHook.isAutoSendingActive
+        ? `Auto-sending: ${chat.autoSendHook.autoSendRemaining} left... `
+        : `Gemini is thinking... `;
 
     let placeholderText = "Type your message here... (Shift+Enter for new line, or paste files)";
     if (isCharacterMode) {
@@ -512,7 +556,12 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                     />
                 )}
                 <div className="p-3 sm:p-4 border-t border-gray-700 bg-gray-800">
-                    {chat.isLoading && <p className="text-xs text-center text-blue-400 mb-2 animate-pulse">{loadingMessageText}</p>}
+                    {chat.isLoading && (
+                    <p className="text-xs text-center text-blue-400 mb-2 animate-pulse">
+                        {loadingMessageText}
+                        <TimerDisplay startTime={chat.generationStartTimeRef.current} />
+                    </p>
+                )}
                     <div className="flex items-end bg-gray-700 rounded-lg p-1 focus-within:ring-2 focus-within:ring-blue-500">
                         <input type="file" multiple ref={fileInputRef} onChange={(e) => handleFileSelection(e.target.files)} className="hidden" accept="image/*,video/*,.pdf,text/*,application/json" />
                         <button onClick={() => fileInputRef.current?.click()} disabled={chat.isLoading || !chat.currentChatSession || isInfoInputModeActive || chat.autoSendHook.isAutoSendingActive} className="p-2.5 sm:p-3 m-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-blue-500" title="Attach files" aria-label="Attach files">

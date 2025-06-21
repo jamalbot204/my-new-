@@ -10,13 +10,13 @@ import RefreshAttachmentButton from './RefreshAttachmentButton';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
 import { useAudioContext } from '../contexts/AudioContext';
-import { MAX_WORDS_PER_TTS_SEGMENT, MESSAGE_CONTENT_SNIPPET_THRESHOLD } from '../constants';
+import { MAX_WORDS_PER_TTS_SEGMENT } from '../constants';
 import {
     UserIcon, SparklesIcon, PencilIcon, TrashIcon, ClipboardDocumentListIcon,
     ArrowPathIcon, MagnifyingGlassIcon, DocumentIcon, PlayCircleIcon,
     ArrowDownTrayIcon, EllipsisVerticalIcon, ClipboardIcon, CheckIcon, UsersIcon,
     ChevronDownIcon, ChevronRightIcon, XCircleIcon, SpeakerWaveIcon, StopCircleIcon, SpeakerXMarkIcon,
-    PauseIcon, ChevronUpIcon, BookOpenIcon
+    PauseIcon, BookOpenIcon
 } from './Icons';
 import { splitTextForTts } from '../services/utils';
 
@@ -132,7 +132,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   chatScrollContainerRef,
   highlightTerm,
   onEnterReadMode,
-  onSizeChange,
+  onSizeChange, // onSizeChange is called by the parent Row component in ChatView
 }) => {
   const chat = useChatContext();
   const ui = useUIContext();
@@ -150,11 +150,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const [dynamicDropdownClass, setDynamicDropdownClass] = useState<string>(initialDropdownHorizontalClass);
 
   const [isThoughtsExpanded, setIsThoughtsExpanded] = useState(false);
-  const [isContentExpanded, setIsContentExpanded] = useState(false);
   
-  useEffect(() => {
-    onSizeChange();
-  }, [isContentExpanded, onSizeChange]);
+  // Removed isContentExpanded state and related logic
+  // onSizeChange is called by parent Row component when this MessageItem's size might change.
 
   const markdownContentRef = useRef<HTMLDivElement>(null);
 
@@ -190,10 +188,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
                            message.cachedAudioBuffers.length === numExpectedTtsParts &&
                            message.cachedAudioBuffers.every(buffer => !!buffer);
 
-  const isLongTextContent = displayContent.trim().length > MESSAGE_CONTENT_SNIPPET_THRESHOLD;
-  const contentToRender = (isLongTextContent && !isContentExpanded)
-    ? displayContent.trim().substring(0, MESSAGE_CONTENT_SNIPPET_THRESHOLD) + "..."
-    : displayContent;
+  // contentToRender is now always the full displayContent
+  const contentToRender = displayContent;
 
   useEffect(() => {
     if (markdownContentRef.current) {
@@ -213,7 +209,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         }
       });
     }
-  }, [highlightTerm, contentToRender, isContentExpanded]);
+  }, [highlightTerm, contentToRender]); // Removed isContentExpanded dependency
 
 
   useEffect(() => {
@@ -309,7 +305,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
     ui.openEditPanel({
         sessionId: chat.currentChatSession.id,
         messageId: message.id,
-        originalContent: message.content,
+        originalContent: message.content, // Original full content
         role: message.role,
         attachments: message.attachments,
     });
@@ -330,7 +326,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleCopyMessageClick = async () => {
-    await chat.handleActualCopyMessage(message.content);
+    await chat.handleActualCopyMessage(displayContent); // Use displayContent (full text)
     setIsOptionsMenuOpen(false);
   };
 
@@ -578,20 +574,6 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         {contentToRender}
                     </ReactMarkdown>
                     </div>
-                )}
-                 {isLongTextContent && (
-                    <button
-                        onClick={() => setIsContentExpanded(!isContentExpanded)}
-                        className="text-blue-300 hover:text-blue-200 text-xs mt-1.5 focus:outline-none flex items-center"
-                        aria-expanded={isContentExpanded}
-                    >
-                        {isContentExpanded ? "Show less" : "Show more"}
-                        {isContentExpanded ? (
-                            <ChevronUpIcon className="w-3.5 h-3.5 ml-1" />
-                        ) : (
-                            <ChevronDownIcon className="w-3.5 h-3.5 ml-1" />
-                        )}
-                    </button>
                 )}
 
                 {message.attachments && message.attachments.length > 0 && (
