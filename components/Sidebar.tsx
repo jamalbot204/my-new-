@@ -26,6 +26,24 @@ const Sidebar: React.FC = () => {
     }
   };
 
+  const handleNewChatClick = () => {
+    chat.handleNewChat();
+    ui.closeSidebar();
+  };
+
+  const handleSelectChatClick = (id: string) => {
+    if (chat.editingTitleInfo.id !== id) {
+      chat.handleSelectChat(id);
+      ui.closeSidebar();
+    }
+  };
+
+  const handleImportClick = () => {
+    chat.handleImportAll();
+    // The sidebar will remain open to allow the user to see the result of the import immediately.
+    // If you'd prefer it to close, you can add ui.closeSidebar() here.
+  };
+
   return (
     <div className="w-72 bg-gray-800 h-full flex flex-col border-r border-gray-700">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -43,7 +61,7 @@ const Sidebar: React.FC = () => {
       <div className="p-4 space-y-3">
         <div className="flex space-x-2">
             <button
-            onClick={chat.handleNewChat}
+            onClick={handleNewChatClick}
             className="flex-1 flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
             >
             <PlusIcon className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" /> 
@@ -72,7 +90,7 @@ const Sidebar: React.FC = () => {
                 Export
             </button>
             <button
-                onClick={chat.handleImportAll}
+                onClick={handleImportClick}
                 title="Import Chats"
                 className="w-full flex items-center justify-center px-3 py-2 text-xs font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600 transition-colors"
             >
@@ -90,7 +108,7 @@ const Sidebar: React.FC = () => {
         {chat.chatHistory.map(session => (
           <div
             key={session.id}
-            onClick={() => chat.editingTitleInfo.id !== session.id && chat.handleSelectChat(session.id)}
+            onClick={() => handleSelectChatClick(session.id)}
             className={`flex items-center justify-between p-2.5 rounded-md group transition-colors
                         ${chat.editingTitleInfo.id === session.id ? 'bg-gray-700 ring-1 ring-blue-500' : 
                          chat.currentChatId === session.id ? 'bg-blue-500 bg-opacity-30 text-blue-300' : 

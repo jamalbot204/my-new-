@@ -65,7 +65,7 @@ const AppContent: React.FC = () => {
 
       {ui.isSidebarOpen && <div className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden" onClick={ui.closeSidebar} aria-hidden="true" />}
       
-      <main className={`flex-1 flex flex-col overflow-y-auto transition-all duration-300 ease-in-out ${ui.isSidebarOpen ? 'md:ml-72' : 'ml-0'} ${isAudioBarVisible ? 'pt-[76px]' : ''}`}>
+      <main className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${ui.isSidebarOpen ? 'md:ml-72' : 'ml-0'} ${isAudioBarVisible ? 'pt-[76px]' : ''}`}>
         <ChatView ref={chatViewRef} onEnterReadMode={handleEnterReadMode} />
       </main>
       

@@ -119,15 +119,19 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     useLayoutEffect(() => {
         if (listRef.current) {
             const isNewChatOrSwitched = prevChatIdRef.current !== chat.currentChatId;
-            const messagesLengthChanged = prevVisibleMessagesLengthRef.current !== visibleMessages.length;
+            const newMessagesCount = visibleMessages.length;
+            const oldMessagesCount = prevVisibleMessagesLengthRef.current;
+            const messagesLengthChanged = newMessagesCount !== oldMessagesCount;
 
             if (isNewChatOrSwitched || (messagesLengthChanged && !shouldPreserveScrollRef.current)) {
-                // When loading for the first time or sending a message, scroll to the bottom.
-                listRef.current.scrollToItem(visibleMessages.length - 1, 'end');
-            }
-            if(shouldPreserveScrollRef.current) {
-                 // When "Show More" is clicked, we don't auto-scroll.
-                 // The list preserves the scroll position relative to the top item.
+                // Sent a message or switched chats, scroll to bottom
+                listRef.current.scrollToItem(newMessagesCount - 1, 'end');
+            } else if (messagesLengthChanged && shouldPreserveScrollRef.current) {
+                // Prepended messages ("Show More"), maintain scroll position
+                const numPrepended = newMessagesCount - oldMessagesCount;
+                if (numPrepended > 0) {
+                    listRef.current.scrollToItem(numPrepended, 'start');
+                }
                 shouldPreserveScrollRef.current = false;
             }
         }
@@ -137,9 +141,14 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 
 
     const handleSendMessageClick = async (characterId?: string) => {
-        const currentInputMessageValue = inputMessage;
+        const currentInputMessageValue = inputMessage; // Capture before clearing
         const attachmentsToSend = getValidAttachmentsToSend();
-        let temporaryContextFlag = false;
+        
+        // This flag determines if the user's utterance (promptContent) should be saved as a UI message.
+        // True = DO NOT SAVE user message to UI (e.g., for AICharacter.contextualInfo).
+        // False = DO SAVE user message to UI (e.g., normal message, or yellow "Info" button with text).
+        let skipSavingUserMessageToUI = false;
+        let messageToSendToGemini = currentInputMessageValue;
 
         if (chat.isLoading || !chat.currentChatSession || chat.autoSendHook.isAutoSendingActive) return;
 
@@ -155,24 +164,46 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 resetSelectedFiles();
                 return;
             }
-            if (isInfoInputModeActive) {
-                temporaryContextFlag = !!currentInputMessageValue.trim();
-            }
-        } else if (!isCharacterMode) {
+
+            // New behavior: Use AICharacter.contextualInfo if main input is empty
             if (currentInputMessageValue.trim() === '' && attachmentsToSend.length === 0) {
-                return;
+                const characterToSpeak = characters.find(c => c.id === characterId);
+                if (characterToSpeak && characterToSpeak.contextualInfo && characterToSpeak.contextualInfo.trim() !== '') {
+                    messageToSendToGemini = characterToSpeak.contextualInfo;
+                    skipSavingUserMessageToUI = true; // Don't save this contextualInfo as a user message
+                }
+                // If input is empty AND character has no (or empty) contextualInfo,
+                // messageToSendToGemini remains empty, skipSavingUserMessageToUI remains false.
+                // An empty user message bubble will be created.
+            } else if (isInfoInputModeActive && currentInputMessageValue.trim() !== '') {
+                // Yellow "Info" button mode with text. This text SHOULD be saved as a user message.
+                // So, skipSavingUserMessageToUI remains false.
+                // messageToSendToGemini is already currentInputMessageValue.
             }
-        } else {
-            return;
+            // If none of the above, it's a regular character message with input, skipSavingUserMessageToUI remains false.
+
+        } else if (!isCharacterMode) { // Standard mode (not character)
+            if (currentInputMessageValue.trim() === '' && attachmentsToSend.length === 0) {
+                return; // Nothing to send
+            }
+            // messageToSendToGemini is currentInputMessageValue
+            // skipSavingUserMessageToUI is false
+        } else { // Character mode is false, but characterId might be present (should not happen) or no characterId.
+            return; // Invalid state or nothing to do.
         }
 
         setInputMessage('');
         resetSelectedFiles();
-        if (isInfoInputModeActive && temporaryContextFlag) {
+        
+        // Toggle off "Info Input Mode" if it was active and user actually typed something
+        // and it wasn't the AICharacter.contextualInfo flow.
+        if (isInfoInputModeActive && currentInputMessageValue.trim() !== '' && !skipSavingUserMessageToUI) {
             setIsInfoInputModeActive(false);
         }
         
-        await chat.handleSendMessage(currentInputMessageValue, attachmentsToSend, undefined, characterId, temporaryContextFlag);
+        // Pass `skipSavingUserMessageToUI` as `isTemporaryContext` to useGemini.
+        // `isTemporaryContext: true` in useGemini means "do not add user message to UI".
+        await chat.handleSendMessage(messageToSendToGemini, attachmentsToSend, undefined, characterId, skipSavingUserMessageToUI);
     };
 
     const handleContinueFlowClick = async () => {
@@ -240,8 +271,8 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     let placeholderText = "Type your message here... (Shift+Enter for new line, or paste files)";
     if (isCharacterMode) {
         placeholderText = isInfoInputModeActive
-            ? "Enter one-time contextual info for the character..."
-            : "Type message (optional), then select character...";
+            ? "Enter one-time contextual info for the character (will be saved as your message)..."
+            : "Type message (optional), or select character (uses pre-set info if input empty)...";
     }
 
     const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, char: AICharacter) => {
@@ -380,7 +411,7 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 )}
             </header>
 
-            <div ref={messageListContainerRef} className="flex-1 relative" role="log" aria-live="polite">
+            <div ref={messageListContainerRef} className="flex-1 relative min-h-0" role="log" aria-live="polite">
                 {chat.currentChatSession && showLoadButtonsUI && visibleMessages.length < totalMessagesInSession && (
                     <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10 flex flex-col items-center space-y-2 my-2">
                         {amountToLoad > 0 && <button onClick={() => handleLoadMore(amountToLoad)} className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-transform transform hover:scale-105">Show {amountToLoad} More</button>}
@@ -447,7 +478,7 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 )}
                 {isCharacterMode && characters.length > 0 && (
                     <div ref={characterButtonContainerRef} className="p-2 sm:p-3 border-t border-gray-700 bg-gray-800" onDragOver={handleDragOver} onDrop={handleDrop}>
-                        <p className="text-xs text-gray-400 mb-2">{isReorderingActive ? "Drag to reorder characters, then click 'Done'." : (isInfoInputModeActive ? "Input is for one-time info. Select character to speak:" : (chat.autoSendHook.isPreparingAutoSend ? "Auto-send ready. Select character to start:" : "Select a character to speak (can be empty input):"))}</p>
+                        <p className="text-xs text-gray-400 mb-2">{isReorderingActive ? "Drag to reorder characters, then click 'Done'." : (isInfoInputModeActive ? "Input is for one-time info (will be saved). Select character:" : (chat.autoSendHook.isPreparingAutoSend ? "Auto-send ready. Select character to start:" : "Select a character to speak (uses pre-set info if input is empty):"))}</p>
                         <div className="flex flex-wrap gap-2">
                             {characters.map((char) => (
                                 <button key={char.id} data-char-id={char.id} onClick={() => !isReorderingActive && handleSendMessageClick(char.id)} disabled={!chat.currentChatSession || chat.isLoading || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive || (isReorderingActive && !!draggedCharRef.current && draggedCharRef.current.id === char.id)} draggable={isReorderingActive} onDragStart={(e) => handleDragStart(e, char)} onDragEnd={handleDragEnd} className={`px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 transition-all duration-150 ease-in-out ${isReorderingActive ? 'cursor-grab hover:ring-2 hover:ring-purple-400' : 'disabled:cursor-not-allowed'} ${draggedCharRef.current?.id === char.id ? 'opacity-50 ring-2 ring-blue-500' : ''} ${(chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading) ? 'ring-2 ring-green-500 hover:ring-green-400' : ''}`} title={isReorderingActive ? `Drag to reorder ${char.name}` : (chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading ? `Start auto-sending as ${char.name}` : `Speak as ${char.name}`)}>
@@ -488,7 +519,7 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                             <PaperClipIcon className="w-5 h-5" />
                         </button>
                         {isCharacterMode && (
-                            <button onClick={toggleInfoInputMode} disabled={chat.isLoading || !chat.currentChatSession || chat.autoSendHook.isAutoSendingActive} className={`p-2.5 sm:p-3 m-1 text-gray-300 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 ${isInfoInputModeActive ? 'bg-yellow-500 hover:bg-yellow-600 text-white focus:ring-yellow-400' : 'hover:text-white focus:ring-blue-500'}`} title={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input"} aria-label={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input"} aria-pressed={isInfoInputModeActive}>
+                            <button onClick={toggleInfoInputMode} disabled={chat.isLoading || !chat.currentChatSession || chat.autoSendHook.isAutoSendingActive} className={`p-2.5 sm:p-3 m-1 text-gray-300 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 ${isInfoInputModeActive ? 'bg-yellow-500 hover:bg-yellow-600 text-white focus:ring-yellow-400' : 'hover:text-white focus:ring-blue-500'}`} title={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input (typed text will be saved as your message)"} aria-label={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input (typed text will be saved as your message)"} aria-pressed={isInfoInputModeActive}>
                                 <InfoIcon className="w-5 h-5" />
                             </button>
                         )}
