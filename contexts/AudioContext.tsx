@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useRef, ReactNode } from 'react';
-import { AudioPlayerState } from '../types';
+
+
+import React, { createContext, useContext, useRef, ReactNode, useEffect } from 'react';
+import { AudioPlayerState, ChatMessage } from '../types'; // Added ChatMessage
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useAudioControls } from '../hooks/useAudioControls';
 import { useChatContext } from './ChatContext';
 import { useUIContext } from './UIContext';
-import { useAutoFetchAudio } from '../hooks/useAutoFetchAudio';
+import { useAutoPlay } from '../hooks/useAutoPlay'; // Import the new hook
 import { splitTextForTts } from '../services/utils';
 import { MAX_WORDS_PER_TTS_SEGMENT } from '../constants';
 
@@ -14,7 +16,7 @@ interface AudioContextType {
   handlePlayTextForMessage: (text: string, messageId: string, partIndex?: number) => Promise<void>;
   handleStopAndCancelAllForCurrentAudio: () => void;
   handleClosePlayerViewOnly: () => void;
-  handleDownloadAudio: (sessionId: string, messageId: string) => void;
+  handleDownloadAudio: (sessionId: string, messageId: string, userProvidedName?: string) => void;
   handleResetAudioCache: (sessionId: string, messageId: string) => void;
   isMainButtonMultiFetchingApi: (baseId: string) => boolean;
   getSegmentFetchError: (uniqueSegmentId: string) => string | undefined;
@@ -26,7 +28,7 @@ interface AudioContextType {
   togglePlayPause: () => Promise<void>;
   increaseSpeed: () => void;
   decreaseSpeed: () => void;
-  triggerAutoFetchForNewMessage: (newAiMessage: import('../types').ChatMessage) => Promise<void>;
+  triggerAutoPlayForNewMessage: (newAiMessage: ChatMessage) => Promise<void>;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -35,11 +37,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const chat = useChatContext();
   const ui = useUIContext();
 
-  // A ref to hold the audio controls hook instance, allowing its methods to be accessed within callbacks
   const audioControlsHookRef = useRef<any>(null);
 
   const audioPlayer = useAudioPlayer({
-    logApiRequest: (details) => chat.isLoading, // Simplified for now
+    logApiRequest: (details) => chat.isLoading, 
     onCacheAudio: (id, buffer) => audioControlsHookRef.current?.handleCacheAudioForMessageCallback(id, buffer),
     onAutoplayNextSegment: async (baseMessageId, playedPartIndex) => {
       const currentChat = chat.currentChatSession;
@@ -61,7 +62,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const audioControls = useAudioControls({
     currentChatSession: chat.currentChatSession,
     updateChatSession: chat.updateChatSession,
-    logApiRequest: (details) => chat.isLoading, // Simplified
+    logApiRequest: (details) => chat.isLoading, 
     showToast: ui.showToast,
     audioPlayerHook: audioPlayer,
     requestResetAudioCacheConfirmationModal: ui.requestResetAudioCacheConfirmation,
@@ -69,13 +70,21 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     onCancelAutoFetchSegment: () => {},
   });
   
-  // Update the ref with the latest instance of audioControls
   audioControlsHookRef.current = audioControls;
 
-  const autoFetch = useAutoFetchAudio({
+  const autoPlay = useAutoPlay({
     currentChatSession: chat.currentChatSession,
-    audioControlsPlayText: audioControls.handlePlayTextForMessage,
+    playFunction: audioControls.handlePlayTextForMessage,
   });
+  
+  // Connect the ChatContext's triggerAutoPlayForNewMessage to the one from useAutoPlay
+  // This ensures that useGemini (via ChatContext) calls the auto-play logic defined in AudioProvider.
+  useEffect(() => {
+    if (chat && (chat as any).triggerAutoPlayForNewMessage !== autoPlay.triggerAutoPlayForNewMessage) {
+      (chat as any).triggerAutoPlayForNewMessage = autoPlay.triggerAutoPlayForNewMessage;
+    }
+  }, [chat, autoPlay.triggerAutoPlayForNewMessage]);
+
 
   const value = {
     audioPlayerState: audioPlayer.audioPlayerState,
@@ -94,7 +103,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     togglePlayPause: audioPlayer.togglePlayPause,
     increaseSpeed: audioPlayer.increaseSpeed,
     decreaseSpeed: audioPlayer.decreaseSpeed,
-    triggerAutoFetchForNewMessage: autoFetch.triggerAutoFetchForNewMessage,
+    triggerAutoPlayForNewMessage: autoPlay.triggerAutoPlayForNewMessage, // Provide from new hook
   };
 
   return <AudioContext.Provider value={value}>{children}</AudioContext.Provider>;

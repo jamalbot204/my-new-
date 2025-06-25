@@ -1,18 +1,17 @@
 // services/utils.ts
 import { MODEL_DEFINITIONS } from '../constants';
-import { ChatMessage, ChatMessageRole } from '../types';
+import { ChatMessage, ChatMessageRole, Attachment } from '../types';
 
 /**
  * Splits text into segments for Text-to-Speech processing.
  * Each segment will have at most `maxWordsPerSegment`.
- * If the total text is longer than `maxWordsPerSegment`, it's split into
- * roughly equal parts.
+ * If `maxWordsPerSegment` is undefined, 0, or non-positive, the text is not split.
  *
  * @param fullText The complete text to be split.
- * @param maxWordsPerSegment The maximum number of words allowed in a single segment.
+ * @param maxWordsPerSegment The maximum number of words allowed in a single segment, or undefined/non-positive for no splitting.
  * @returns An array of text segments.
  */
-export const splitTextForTts = (fullText: string, maxWordsPerSegment: number): string[] => {
+export const splitTextForTts = (fullText: string, maxWordsPerSegment?: number): string[] => {
   const words = fullText.trim().split(/\s+/).filter(Boolean);
   const totalWords = words.length;
 
@@ -20,13 +19,12 @@ export const splitTextForTts = (fullText: string, maxWordsPerSegment: number): s
     return [];
   }
 
-  // If the text is short enough for one segment, return it as is.
-  if (totalWords <= maxWordsPerSegment) {
+  // If maxWordsPerSegment is undefined, 0, non-positive, or if totalWords is less than/equal to it, don't split.
+  if (maxWordsPerSegment === undefined || maxWordsPerSegment <= 0 || totalWords <= maxWordsPerSegment) {
     return [fullText];
   }
 
   // Calculate the number of segments needed.
-  // Each segment should be AT MOST maxWordsPerSegment.
   const numSegments = Math.ceil(totalWords / maxWordsPerSegment);
 
   // Calculate the target number of words for each segment to make them as equal as possible.
@@ -120,4 +118,12 @@ export const getHistoryUpToMessage = (messages: ChatMessage[], messageIndex: num
     return messages; // Return all messages if index is out of bounds, or handle as an error
   }
   return messages.slice(0, messageIndex);
+};
+
+export const getDisplayFileType = (file: Attachment): string => {
+  if (file.type === 'image') return "Image";
+  if (file.type === 'video') return "Video";
+  if (file.mimeType === 'application/pdf') return "PDF";
+  if (file.mimeType.startsWith('text/')) return "Text";
+  return "File";
 };

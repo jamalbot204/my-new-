@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
 import { GeminiSettings, SafetySetting, TTSSettings } from '../types';
-import { DEFAULT_SETTINGS, MODEL_DEFINITIONS, DEFAULT_MODEL_ID, DEFAULT_SAFETY_SETTINGS, INITIAL_MESSAGES_COUNT, DEFAULT_TTS_SETTINGS } from '../constants';
-import { CloseIcon, ShieldCheckIcon, PencilIcon, MagnifyingGlassIcon, LinkIcon, BugAntIcon, ArrowPathIcon, SpeakerWaveIcon, CalculatorIcon, ExportBoxIcon, PlayIcon, BookOpenIcon } from './Icons';
+import { DEFAULT_SETTINGS, MODEL_DEFINITIONS, DEFAULT_MODEL_ID, DEFAULT_SAFETY_SETTINGS, INITIAL_MESSAGES_COUNT, DEFAULT_TTS_SETTINGS, MODELS_SUPPORTING_THINKING_BUDGET_UI, MODELS_SENDING_THINKING_CONFIG_API } from '../constants';
+import { CloseIcon, ShieldCheckIcon, PencilIcon, MagnifyingGlassIcon, LinkIcon, BugAntIcon, ArrowPathIcon, SpeakerWaveIcon, CalculatorIcon, ExportBoxIcon, PlayIcon, BookOpenIcon, FolderOpenIcon } from './Icons';
 import SafetySettingsModal from './SafetySettingsModal';
 import InstructionEditModal from './InstructionEditModal';
 import TtsSettingsModal from './TtsSettingsModal';
+import ThinkingBudgetControl from './ThinkingBudgetControl'; // Import new component
 import * as dbService from '../services/dbService';
 import { METADATA_KEYS } from '../services/dbService';
 
@@ -60,6 +62,14 @@ const SettingsPanel: React.FC = () => {
         const { name, value, type } = e.target;
         if (name === "model") {
             setLocalModel(value);
+            // Reset thinkingBudget if model changes to one that doesn't support it in UI,
+            // or to default if it becomes supported.
+            if (!MODELS_SUPPORTING_THINKING_BUDGET_UI.includes(value)) {
+                setLocalSettings(prev => ({ ...prev, thinkingBudget: undefined }));
+            } else if (localSettings.thinkingBudget === undefined) { // If newly supported and was undefined
+                 setLocalSettings(prev => ({ ...prev, thinkingBudget: DEFAULT_SETTINGS.thinkingBudget }));
+            }
+
         } else if (type === 'checkbox') {
             const { checked } = e.target as HTMLInputElement;
             setLocalSettings(prev => ({ ...prev, [name]: checked }));
@@ -82,6 +92,10 @@ const SettingsPanel: React.FC = () => {
             numValue = undefined;
         }
         setLocalSettings(prev => ({ ...prev, [name]: numValue }));
+    };
+    
+    const handleThinkingBudgetChange = (newValue: number | undefined) => {
+        setLocalSettings(prev => ({...prev, thinkingBudget: newValue}));
     };
 
     const handleSubmit = () => {
@@ -116,7 +130,23 @@ const SettingsPanel: React.FC = () => {
 
     const handleCustomizeExportClick = () => {
         ui.openExportConfigurationModal();
-        ui.closeSettingsPanel();
+        // ui.closeSettingsPanel(); // Keep settings panel open if user is just configuring export, they might want to export from here later.
+                               // If "Export Selected" button is directly in ExportConfigModal, then this behavior is fine.
+                               // The new "View Chat Attachments" *will* close settings.
+    };
+
+    const handleViewChatAttachments = () => {
+        if (currentChatSession) {
+            const attachmentsExist = currentChatSession.messages.some(msg => msg.attachments && msg.attachments.length > 0);
+            if (attachmentsExist) {
+                ui.openChatAttachmentsModal(currentChatSession);
+                // openChatAttachmentsModal in useAppModals now handles closing the settings panel
+            } else {
+                ui.showToast("No attachments found in this chat.", "success");
+            }
+        } else {
+            ui.showToast("No active chat session.", "error");
+        }
     };
 
     const InstructionButton: React.FC<{
@@ -130,6 +160,10 @@ const SettingsPanel: React.FC = () => {
             </button>
         </div>
     );
+    
+    const showThinkingBudgetControl = MODELS_SUPPORTING_THINKING_BUDGET_UI.includes(localModel);
+    const thinkingBudgetActuallyUsedByApi = MODELS_SENDING_THINKING_CONFIG_API.includes(localModel);
+
 
     return (
         <>
@@ -146,6 +180,15 @@ const SettingsPanel: React.FC = () => {
                         </div>
                         <InstructionButton label="System Instruction (for AI)" value={localSettings.systemInstruction} onClick={() => handleOpenInstructionModal('systemInstruction')} placeholder="e.g., You are a helpful assistant." />
                         <InstructionButton label="User Persona Instruction (for AI to mimic user)" value={localSettings.userPersonaInstruction} onClick={() => handleOpenInstructionModal('userPersonaInstruction')} placeholder="e.g., I am a creative writer exploring narratives." />
+                        
+                        {showThinkingBudgetControl && (
+                            <ThinkingBudgetControl
+                                value={localSettings.thinkingBudget}
+                                onChange={handleThinkingBudgetChange}
+                                modelActuallyUsesApi={thinkingBudgetActuallyUsedByApi}
+                            />
+                        )}
+
                         <div className="pt-2">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center"><SpeakerWaveIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Text-to-Speech (TTS) settings</h3></div>
@@ -166,6 +209,14 @@ const SettingsPanel: React.FC = () => {
                                 <button onClick={handleCustomizeExportClick} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="Customize export data">Customize & Export <PencilIcon className="w-3 h-3 ml-1" /></button>
                             </div>
                             <p className="text-xs text-gray-400">Choose chats and data to include when exporting.</p>
+                        </div>
+                         {/* New Chat Attachments Button */}
+                        <div className="pt-2">
+                            <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center"><FolderOpenIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Chat Attachments</h3></div>
+                                <button onClick={handleViewChatAttachments} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="View chat attachments">View <PencilIcon className="w-3 h-3 ml-1" /></button>
+                            </div>
+                            <p className="text-xs text-gray-400">View all attachments in the current chat session.</p>
                         </div>
                         <div>
                             <label htmlFor="temperature" className="block text-sm font-medium text-gray-300">Temperature: {localSettings.temperature?.toFixed(2) ?? DEFAULT_SETTINGS.temperature?.toFixed(2)}</label>

@@ -1,3 +1,4 @@
+
 import React, { useRef, useCallback, useState } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
@@ -16,6 +17,8 @@ import TtsSettingsModal from './TtsSettingsModal';
 import AdvancedAudioPlayer from './AdvancedAudioPlayer';
 import ExportConfigurationModal from './ExportConfigurationModal';
 import ReadModeView from './ReadModeView';
+import FilenameInputModal from './FilenameInputModal'; // Import the new modal
+import ChatAttachmentsModal from './ChatAttachmentsModal'; // Import the new modal
 
 const AppContent: React.FC = () => {
   const chat = useChatContext();
@@ -56,7 +59,14 @@ const AppContent: React.FC = () => {
     return <div className="flex justify-center items-center h-screen bg-gray-900 text-white">Loading chat sessions...</div>;
   }
 
-  // Notice how clean this return statement is! No more prop drilling.
+  const handleGoToAttachmentInChat = (messageId: string) => {
+    ui.closeChatAttachmentsModal();
+    // ui.closeSettingsPanel(); // Settings panel is now closed by openChatAttachmentsModal
+    if (chatViewRef.current) {
+      chatViewRef.current.scrollToMessage(messageId);
+    }
+  };
+
   return (
     <div className="flex h-screen antialiased text-gray-200 bg-gray-900 overflow-hidden">
       <div className={`fixed inset-y-0 left-0 z-[60] transform transition-transform duration-300 ease-in-out ${ui.isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-72`}>
@@ -95,6 +105,25 @@ const AppContent: React.FC = () => {
         <CharacterManagementModal />
         <CharacterContextualInfoModal />
         <DebugTerminalPanel />
+        <ChatAttachmentsModal
+            isOpen={ui.isChatAttachmentsModalOpen}
+            attachments={ui.attachmentsForModal}
+            chatTitle={chat.currentChatSession?.title || "Current Chat"}
+            onClose={ui.closeChatAttachmentsModal}
+            onGoToMessage={handleGoToAttachmentInChat}
+        />
+
+
+        {/* Render the FilenameInputModal */}
+        {ui.isFilenameInputModalOpen && ui.filenameInputModalProps && (
+          <FilenameInputModal
+            isOpen={ui.isFilenameInputModalOpen}
+            defaultFilename={ui.filenameInputModalProps.defaultFilename}
+            promptMessage={ui.filenameInputModalProps.promptMessage}
+            onSubmit={ui.submitFilenameInputModal}
+            onClose={ui.closeFilenameInputModal}
+          />
+        )}
 
         <ConfirmationModal
           isOpen={ui.isDeleteConfirmationOpen}
@@ -114,7 +143,9 @@ const AppContent: React.FC = () => {
           message="Are you sure you want to reset the audio cache for this message? This action cannot be undone."
           confirmText="Yes, Reset Audio" cancelText="No, Cancel"
           onConfirm={() => { 
-            if(ui.resetAudioTarget) audio.handleResetAudioCache(ui.resetAudioTarget.sessionId, ui.resetAudioTarget.messageId); 
+            if(ui.resetAudioTarget) {
+              chat.performActualAudioCacheReset(ui.resetAudioTarget.sessionId, ui.resetAudioTarget.messageId);
+            }
             ui.cancelResetAudioCacheConfirmation(); 
           }} 
           onCancel={ui.cancelResetAudioCacheConfirmation}

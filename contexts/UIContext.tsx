@@ -1,8 +1,9 @@
+
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useAppUI, ToastInfo } from '../hooks/useAppUI';
-import { useAppModals } from '../hooks/useAppModals';
+import { useAppModals, FilenameInputModalTriggerProps } from '../hooks/useAppModals';
 import { EditMessagePanelDetails } from '../components/EditMessagePanel';
-import { AICharacter, ExportConfiguration } from '../types';
+import { AICharacter, ExportConfiguration, ChatSession, AttachmentWithContext } from '../types';
 
 // Define the shape of the context data
 interface UIContextType {
@@ -52,6 +53,19 @@ interface UIContextType {
   requestResetAudioCacheConfirmation: (sessionId: string, messageId: string) => void;
   cancelResetAudioCacheConfirmation: () => void;
   setIsResetAudioConfirmationOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // For FilenameInputModal
+  isFilenameInputModalOpen: boolean;
+  filenameInputModalProps: FilenameInputModalTriggerProps | null;
+  openFilenameInputModal: (props: FilenameInputModalTriggerProps) => void;
+  closeFilenameInputModal: () => void;
+  submitFilenameInputModal: (filename: string) => void;
+
+  // For ChatAttachmentsModal
+  isChatAttachmentsModalOpen: boolean;
+  attachmentsForModal: AttachmentWithContext[];
+  openChatAttachmentsModal: (session: ChatSession | null) => void;
+  closeChatAttachmentsModal: () => void;
 }
 
 // Create the context with a default value of null
@@ -60,7 +74,8 @@ const UIContext = createContext<UIContextType | null>(null);
 // Create the Provider component
 export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const uiState = useAppUI();
-  const modalsState = useAppModals(uiState.closeSidebar);
+  // Pass showToast from uiState to useAppModals
+  const modalsState = useAppModals(uiState.closeSidebar, uiState.showToast);
 
   const value = {
     ...uiState,

@@ -1,13 +1,20 @@
 
 import { useState, useCallback } from 'react';
 import { EditMessagePanelDetails } from '../components/EditMessagePanel'; // Adjusted path
-import { AICharacter, ExportConfiguration } from '../types'; // Adjusted path
+import { AICharacter, ExportConfiguration, ChatSession, Attachment, ChatMessageRole, AttachmentWithContext } from '../types'; // Adjusted path
 import { DEFAULT_EXPORT_CONFIGURATION } from '../constants'; // Adjusted path
-import { useAppUI } from './useAppUI'; // To close sidebar when modals open
+import { useAppUI, ToastInfo } from './useAppUI'; // To close sidebar and show toast
+
+// Props for FilenameInputModal trigger
+export interface FilenameInputModalTriggerProps {
+  defaultFilename: string;
+  promptMessage: string;
+  onSubmit: (filename: string) => void;
+}
 
 export function useAppModals(
     closeSidebar: () => void, // Callback from useAppUI
-    initialExportConfig?: ExportConfiguration
+    showToast: (message: string, type?: 'success' | 'error', duration?: number) => void // Callback from useAppUI
 ) {
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [isTtsSettingsModalOpen, setIsTtsSettingsModalOpen] = useState(false);
@@ -19,13 +26,20 @@ export function useAppModals(
   const [isDebugTerminalOpen, setIsDebugTerminalOpen] = useState(false);
   
   const [isExportConfigModalOpen, setIsExportConfigModalOpenInternal] = useState(false);
-  // This hook doesn't manage currentExportConfig state directly, App.tsx or useAppPersistence does.
-  // It just handles opening/closing the modal.
-
+  
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ sessionId: string; messageId: string } | null>(null);
   const [isResetAudioConfirmationOpen, setIsResetAudioConfirmationOpen] = useState(false);
   const [resetAudioTarget, setResetAudioTarget] = useState<{ sessionId: string; messageId: string } | null>(null);
+
+  // New state for FilenameInputModal
+  const [isFilenameInputModalOpen, setIsFilenameInputModalOpen] = useState(false);
+  const [filenameInputModalProps, setFilenameInputModalProps] = useState<FilenameInputModalTriggerProps | null>(null);
+  
+  // New state for ChatAttachmentsModal
+  const [isChatAttachmentsModalOpen, setIsChatAttachmentsModalOpen] = useState(false);
+  const [attachmentsForModal, setAttachmentsForModal] = useState<AttachmentWithContext[]>([]);
+
 
   const openSettingsPanel = useCallback(() => { setIsSettingsPanelOpen(true); closeSidebar(); }, [closeSidebar]);
   const closeSettingsPanel = useCallback(() => setIsSettingsPanelOpen(false), []);
@@ -67,7 +81,6 @@ export function useAppModals(
     setIsDeleteConfirmationOpen(false);
     setDeleteTarget(null);
   }, []);
-  // confirmDelete is handled by the calling component as it involves chat updates
 
   const requestResetAudioCacheConfirmation = useCallback((sessionId: string, messageId: string) => {
     setResetAudioTarget({ sessionId, messageId });
@@ -77,7 +90,60 @@ export function useAppModals(
     setIsResetAudioConfirmationOpen(false);
     setResetAudioTarget(null);
   }, []);
-  // confirmResetAudio is handled by the calling component
+
+  // Handlers for FilenameInputModal
+  const openFilenameInputModal = useCallback((props: FilenameInputModalTriggerProps) => {
+    setFilenameInputModalProps(props);
+    setIsFilenameInputModalOpen(true);
+    closeSidebar();
+  }, [closeSidebar]);
+
+  const closeFilenameInputModal = useCallback(() => {
+    setIsFilenameInputModalOpen(false);
+    setFilenameInputModalProps(null);
+  }, []);
+
+  const submitFilenameInputModal = useCallback((filename: string) => {
+    if (filenameInputModalProps) {
+      filenameInputModalProps.onSubmit(filename);
+    }
+    closeFilenameInputModal();
+  }, [filenameInputModalProps, closeFilenameInputModal]);
+
+  // Handlers for ChatAttachmentsModal
+  const openChatAttachmentsModal = useCallback((session: ChatSession | null) => {
+    if (!session || !session.messages || session.messages.length === 0) {
+      showToast("No chat session active or session has no messages.", "error");
+      return;
+    }
+
+    const allAttachments = session.messages.flatMap(msg =>
+      (msg.attachments || []).map(att => ({
+        attachment: att,
+        messageId: msg.id,
+        messageTimestamp: msg.timestamp,
+        messageRole: msg.role,
+        messageContentSnippet: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : ''),
+      }))
+    ).filter(item => item.attachment);
+
+    if (allAttachments.length === 0) {
+      showToast("No attachments found in this chat.", "success");
+      return;
+    }
+    
+    allAttachments.sort((a, b) => new Date(b.messageTimestamp).getTime() - new Date(a.messageTimestamp).getTime());
+    setAttachmentsForModal(allAttachments);
+    setIsChatAttachmentsModalOpen(true);
+    closeSidebar();
+    if (isSettingsPanelOpen) setIsSettingsPanelOpen(false); // Close settings panel if it was open
+  }, [closeSidebar, showToast, isSettingsPanelOpen, setIsSettingsPanelOpen]);
+
+  const closeChatAttachmentsModal = useCallback(() => {
+    setIsChatAttachmentsModalOpen(false);
+    setAttachmentsForModal([]);
+  }, []);
+
 
   return {
     isSettingsPanelOpen, openSettingsPanel, closeSettingsPanel,
@@ -89,5 +155,18 @@ export function useAppModals(
     isExportConfigModalOpen, openExportConfigurationModal, closeExportConfigurationModal,
     isDeleteConfirmationOpen, deleteTarget, requestDeleteConfirmation, cancelDeleteConfirmation, setIsDeleteConfirmationOpen,
     isResetAudioConfirmationOpen, resetAudioTarget, requestResetAudioCacheConfirmation, cancelResetAudioCacheConfirmation, setIsResetAudioConfirmationOpen,
+    
+    // FilenameInputModal related
+    isFilenameInputModalOpen,
+    filenameInputModalProps,
+    openFilenameInputModal,
+    closeFilenameInputModal,
+    submitFilenameInputModal,
+
+    // ChatAttachmentsModal related
+    isChatAttachmentsModalOpen,
+    attachmentsForModal,
+    openChatAttachmentsModal,
+    closeChatAttachmentsModal,
   };
 }

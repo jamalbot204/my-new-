@@ -1,3 +1,4 @@
+
 import { GeminiSettings, SafetySetting, HarmCategory, HarmBlockThreshold, TTSSettings, TTSModelId, TTSVoiceId, ExportConfiguration } from './types';
 
 export const APP_TITLE = "Gemini Chat Interface"; // Matches screenshot
@@ -69,9 +70,9 @@ export const TTS_VOICES: { id: TTSVoiceId; name: string; description: string }[]
 export const DEFAULT_TTS_SETTINGS: TTSSettings = {
     model: 'gemini-2.5-flash-preview-tts',
     voice: 'Zephyr',
-    autoFetchAudioEnabled: false, 
+    autoPlayNewMessages: false, // Renamed from autoFetchAudioEnabled
     systemInstruction: '', 
-    maxWordsPerSegment: MAX_WORDS_PER_TTS_SEGMENT, // New default
+    maxWordsPerSegment: undefined, // Default to no splitting
 };
 
 export const PLAYBACK_SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
@@ -83,6 +84,7 @@ export const DEFAULT_SETTINGS: GeminiSettings = {
   temperature: 0.7,
   topP: 0.95,
   topK: 64,
+  thinkingBudget: undefined, // Default for thinking budget
   safetySettings: DEFAULT_SAFETY_SETTINGS,
   ttsSettings: DEFAULT_TTS_SETTINGS, 
   contextWindowMessages: undefined, 
@@ -166,3 +168,23 @@ export const DEFAULT_EXPORT_CONFIGURATION: ExportConfiguration = {
   includeUiConfiguration: false, 
   includeUserDefinedGlobalDefaults: false,
 };
+
+// Model IDs that should show the Thinking Budget UI
+export const MODELS_SUPPORTING_THINKING_BUDGET_UI: string[] = [
+  'gemini-2.5-flash-preview-04-17',
+  'gemini-2.5-flash-preview-05-20',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite-preview-06-17',
+  'gemini-2.5-pro-preview-05-06',
+  'gemini-2.5-pro',
+];
+
+// Model IDs that will actually send thinkingConfig to the API
+// As per user request, this now includes all Gemini 2.5 Pro and Flash series.
+export const MODELS_SENDING_THINKING_CONFIG_API: string[] = [...MODELS_SUPPORTING_THINKING_BUDGET_UI];
+
+
+export const THINKING_BUDGET_MIN = -1;
+export const THINKING_BUDGET_MAX = 32768;
+export const THINKING_BUDGET_STEP = 1;
+export const THINKING_BUDGET_MARKS = [-1, 0, 32768];

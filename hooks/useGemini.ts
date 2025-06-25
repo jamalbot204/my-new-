@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatSession, ChatMessage, ChatMessageRole, GeminiSettings, Attachment, AICharacter, HarmCategory, HarmBlockThreshold, SafetySetting, FullResponseData, UserMessageInput, LogApiRequestCallback, UseGeminiReturn, GeminiHistoryEntry } from '../types';
-import { getFullChatResponse, generateMimicUserResponse, clearCachedChat as geminiServiceClearCachedChat, mapMessagesToFlippedRoleGeminiHistory } from '../services/geminiService';
+import { getFullChatResponse, generateMimicUserResponse, clearCachedChat as geminiServiceClearCachedChat, mapMessagesToGeminiHistoryInternal } from '../services/geminiService'; // Updated import
 import { DEFAULT_SETTINGS } from '../constants';
 import { EditMessagePanelAction, EditMessagePanelDetails } from '../components/EditMessagePanel';
 import { findPrecedingUserMessageIndex, getHistoryUpToMessage } from '../services/utils'; // Import helpers
@@ -11,7 +11,7 @@ interface UseGeminiProps {
   currentChatSession: ChatSession | null;
   updateChatSession: (sessionId: string, updater: (session: ChatSession) => ChatSession | null) => Promise<void>;
   logApiRequestDirectly: LogApiRequestCallback;
-  onNewAIMessageFinalized?: (newAiMessage: ChatMessage) => void; 
+  onNewAIMessageFinalized?: (newAiMessage: ChatMessage) => Promise<void>; // Changed to async to align with new trigger 
   setMessageGenerationTimes: (updater: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => Promise<void>;
 }
 
@@ -293,9 +293,11 @@ export function useGemini({
                 messages: session.messages.map(msg =>
                     msg.id === modelMessageId ? newAiMessage : msg
                 )
-            }) : null).then(() => {
-                 if (onNewAIMessageFinalized) onNewAIMessageFinalized(newAiMessage);
-            });
+            }) : null);
+            // Call onNewAIMessageFinalized *after* the session state is updated
+            if (onNewAIMessageFinalized) {
+                await onNewAIMessageFinalized(newAiMessage);
+            }
 
         },
         async (errorMsg, isAbortError) => {
@@ -471,9 +473,10 @@ export function useGemini({
                     isStreaming: false,
                     timestamp: new Date()
                 };
-                await updateChatSession(activeChatIdForThisCall, s => s ? ({ ...s, messages: s.messages.map(m => m.id === operationPendingMessageId ? newAiMessage : m)}) : null).then(() => {
-                    if (onNewAIMessageFinalized) onNewAIMessageFinalized(newAiMessage);
-                });
+                await updateChatSession(activeChatIdForThisCall, s => s ? ({ ...s, messages: s.messages.map(m => m.id === operationPendingMessageId ? newAiMessage : m)}) : null);
+                if (onNewAIMessageFinalized) {
+                    await onNewAIMessageFinalized(newAiMessage);
+                }
             },
             async (errorMsg, isAbortError) => {
                 if (requestCancelledByUserRef.current && pendingMessageIdRef.current === operationPendingMessageId) { if(isLoading) setIsLoading(false); setLastMessageHadAttachments(false); return; }
@@ -517,14 +520,15 @@ export function useGemini({
                 _characterNameForLog: "[Continue Flow - User Mimic]"
             };
 
-            const historyForMimic: GeminiHistoryEntry[] = mapMessagesToFlippedRoleGeminiHistory(
-                sessionToUpdate.messages.slice(0,-1), // History *before* the placeholderUserMimicMessage
+            // Use standard, unflipped history including the last MODEL/ERROR message
+            const historyForStandardGeminiCall: GeminiHistoryEntry[] = mapMessagesToGeminiHistoryInternal(
+                sessionToUpdate.messages.slice(0,-1), // Actual history including the last MODEL/ERROR message
                 baseSettingsForMimic
             );
 
             const generatedText = await generateMimicUserResponse(
                 currentChatSession.model,
-                historyForMimic,
+                historyForStandardGeminiCall, // Pass the standard history
                 persona,
                 baseSettingsForMimic,
                 logApiRequestDirectly,
@@ -696,9 +700,10 @@ export function useGemini({
         await updateChatSession(sessionId, session => session ? ({
           ...session, messages: session.messages.map(msg =>
             msg.id === aiMessageIdToRegenerate ? newAiMessageContent : msg
-          )}) : null).then(() => {
-            if (onNewAIMessageFinalized) onNewAIMessageFinalized(newAiMessageContent);
-        });
+          )}) : null);
+        if (onNewAIMessageFinalized) {
+            await onNewAIMessageFinalized(newAiMessageContent);
+        }
       },
       async (errorMsg, isAbortError) => {
         if (requestCancelledByUserRef.current && pendingMessageIdRef.current === aiMessageIdToRegenerate) {
@@ -941,9 +946,10 @@ export function useGemini({
                     isStreaming: false, role: ChatMessageRole.MODEL, timestamp: new Date(), cachedAudioBuffers: null,
                 };
 
-                await updateChatSession(sessionId, s => s ? ({ ...s, messages: s.messages.map(msg => msg.id === messageId ? continuedAiMessage : msg)}) : null).then(() => {
-                    if (onNewAIMessageFinalized) onNewAIMessageFinalized(continuedAiMessage);
-                });
+                await updateChatSession(sessionId, s => s ? ({ ...s, messages: s.messages.map(msg => msg.id === messageId ? continuedAiMessage : msg)}) : null);
+                if (onNewAIMessageFinalized) {
+                     await onNewAIMessageFinalized(continuedAiMessage);
+                }
             },
             onErrorForContinue,
             onCompleteForContinue,

@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+
+
+import React, { useState, useEffect, useRef, memo } from 'react'; // Added memo
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { LightAsync as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -16,11 +19,10 @@ import {
     ArrowPathIcon, MagnifyingGlassIcon, DocumentIcon, PlayCircleIcon, 
     ArrowDownTrayIcon, EllipsisVerticalIcon, ClipboardIcon, CheckIcon, UsersIcon,
     ChevronDownIcon, ChevronRightIcon, XCircleIcon, SpeakerWaveIcon, StopCircleIcon, SpeakerXMarkIcon,
-    PauseIcon, ChevronUpIcon, BookOpenIcon
+    PauseIcon, ChevronUpIcon, BookOpenIcon, ChatBubblePlusIcon
 } from './Icons';
-import { splitTextForTts } from '../services/utils';
+import { splitTextForTts, sanitizeFilename } from '../services/utils';
 
-// The props are now much simpler!
 interface MessageItemProps {
   message: ChatMessage;
   canRegenerateFollowingAI?: boolean;
@@ -126,14 +128,13 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
   };
 
 
-const MessageItem: React.FC<MessageItemProps> = ({ 
+const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoization
   message, 
   canRegenerateFollowingAI,
   chatScrollContainerRef,
   highlightTerm,
   onEnterReadMode,
 }) => {
-  // Get all data and functions from our new contexts!
   const chat = useChatContext();
   const ui = useUIContext();
   const audio = useAudioContext();
@@ -151,6 +152,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   const [isThoughtsExpanded, setIsThoughtsExpanded] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
+  // Removed isPromptActive state
 
   const markdownContentRef = useRef<HTMLDivElement>(null); 
   
@@ -214,6 +216,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Custom modal clicks are handled by stopping propagation at the modal level.
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node) &&
@@ -308,7 +311,6 @@ const MessageItem: React.FC<MessageItemProps> = ({
         originalContent: message.content, 
         role: message.role, 
         attachments: message.attachments,
-        // model and settings are not part of EditMessagePanelDetails
     });
     setIsOptionsMenuOpen(false);
   };
@@ -359,6 +361,31 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   const handleReadModeClick = () => {
     onEnterReadMode(displayContent);
+    setIsOptionsMenuOpen(false);
+  };
+
+  const triggerAudioDownloadModal = (messageId: string) => {
+    if (!chat.currentChatSession) return;
+  
+    const words = message.content.trim().split(/\s+/);
+    const firstWords = words.slice(0, 7).join(' ');
+    const defaultNameSuggestion = sanitizeFilename(firstWords, 50) || 'audio_download';
+    
+    ui.openFilenameInputModal({
+      defaultFilename: defaultNameSuggestion,
+      promptMessage: "Enter filename for audio (extension .mp3 will be added):",
+      onSubmit: (userProvidedName) => {
+        const finalName = userProvidedName.trim() === '' ? defaultNameSuggestion : userProvidedName.trim();
+        audio.handleDownloadAudio(chat.currentChatSession!.id, messageId, finalName);
+      }
+    });
+    setIsOptionsMenuOpen(false);
+  };
+
+  const handleInsertEmptyBubbleClick = () => {
+    if (!chat.currentChatSession) return;
+    const roleToInsert = message.role === ChatMessageRole.USER ? ChatMessageRole.MODEL : ChatMessageRole.USER;
+    chat.handleInsertEmptyMessageAfter(chat.currentChatSession.id, message.id, roleToInsert);
     setIsOptionsMenuOpen(false);
   };
 
@@ -433,9 +460,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
           ? 'text-gray-500 cursor-not-allowed' 
           : `text-gray-200 hover:bg-gray-600 ${className || ''}`
       }`}
-      onMouseDown={() => { if (!disabled) onClick(); }}
-      onTouchStart={() => { if (!disabled) onClick(); }}
-      onClick={(e) => { e.preventDefault(); }}
+      onMouseDown={() => { if (!disabled) onClick(); }} // Use onMouseDown to fire before blur that closes dropdown
+      onTouchStart={() => { if (!disabled) onClick(); }} // For touch devices
+      onClick={(e) => { e.preventDefault(); }} // Prevent any default button behavior that might interfere
     >
       <Icon className={`w-5 h-5 ${disabled ? 'text-gray-500' : ''}`} />
     </button>
@@ -557,7 +584,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
           </div>
         )}
 
-        {(displayContent.trim() || (message.attachments && message.attachments.length > 0) || isError || isUser) && (
+        {(isUser || isModel || isError) && (
             <div className={`px-4 py-3 rounded-lg shadow-md ${bubbleClasses} relative w-full mt-1`}>
                 <>
                 {isModel && message.characterName && (
@@ -736,6 +763,12 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                 label="Read Mode"
                                 />
                             )}
+                             <DropdownMenuItem
+                                onClick={handleInsertEmptyBubbleClick}
+                                icon={ChatBubblePlusIcon}
+                                label="Insert Empty Bubble After"
+                                disabled={isAnyAudioOperationActiveForMessage || chat.isLoading}
+                            />
                             <DropdownMenuItem
                                 onClick={handleCopyMessageClick}
                                 icon={ClipboardDocumentListIcon}
@@ -743,7 +776,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                             />
                             {audio.handleDownloadAudio && message.content.trim() && !isError && allTtsPartsCached && (
                                 <DropdownMenuItem
-                                    onClick={() => { audio.handleDownloadAudio(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
+                                    onClick={() => triggerAudioDownloadModal(message.id)}
                                     icon={ArrowDownTrayIcon} 
                                     label={"Download Audio"}
                                     disabled={isAnyAudioOperationActiveForMessage} 
@@ -797,5 +830,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
     </div>
   );
 };
+
+const MessageItem = memo(MessageItemComponent); // Apply memo
 
 export default MessageItem;

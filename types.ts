@@ -97,7 +97,7 @@ export type TTSVoiceId = string; // Represents one of the 30 voice names like 'K
 export interface TTSSettings {
   model: TTSModelId;
   voice: TTSVoiceId;
-  autoFetchAudioEnabled?: boolean; 
+  autoPlayNewMessages?: boolean; // Renamed from autoFetchAudioEnabled
   systemInstruction?: string; 
   maxWordsPerSegment?: number; // New: Max words per TTS segment
 }
@@ -118,6 +118,7 @@ export interface GeminiSettings {
   ttsSettings: TTSSettings; 
   showAutoSendControls?: boolean; 
   showReadModeButton?: boolean; 
+  thinkingBudget?: number; // Added thinkingBudget
   _characterIdForCacheKey?: string; 
   _characterIdForAPICall?: string;  
   _characterNameForLog?: string; 
@@ -142,7 +143,7 @@ export interface GeminiHistoryEntry {
 }
 
 
-// Specific type for the 'config' object used in API request logging
+// Specific type for the 'config' object used in API request logging and error formatting
 export interface LoggedGeminiGenerationConfig {
   systemInstruction?: string | Content; 
   temperature?: number;
@@ -150,22 +151,22 @@ export interface LoggedGeminiGenerationConfig {
   topK?: number;
   safetySettings?: GeminiSafetySettingSDK[]; 
   tools?: Tool[]; 
-  
+  thinkingConfig?: { thinkingBudget?: number }; 
   responseMimeType?: string;
-  thinkingConfig?: { thinkingBudget?: number };
   seed?: number;
 }
 
-// Type for the payload sent to the Gemini SDK
+// Type for the payload sent to the Gemini SDK, adapted for logging and error context
 export interface ApiRequestPayload {
   model?: string; 
-  history?: GeminiHistoryEntry[]; 
-  contents?: Content[] | GeminiPart[] | string; 
-  config?: Partial<LoggedGeminiGenerationConfig>;
-  file?: { name: string, type: string, size: number, data?: string }; 
-  fileName?: string; 
-  fileApiResponse?: any;
+  history?: GeminiHistoryEntry[]; // Used by chat.create
+  contents?: Content[] | GeminiPart[] | string; // Used by models.generateContent or chat.sendMessage
+  config?: Partial<LoggedGeminiGenerationConfig>; // Config for either chat.create or models.generateContent
+  file?: { name: string, type: string, size: number, data?: string }; // For files.uploadFile (input)
+  fileName?: string; // For files.getFile, files.delete (input)
+  fileApiResponse?: any; // For logging responses from file operations
 }
+
 
 export interface ApiRequestLog {
   id: string;
@@ -291,6 +292,7 @@ export interface MessageItemProps {
   maxWordsPerSegmentForTts?: number;
   showReadModeButton?: boolean;
   onEnterReadMode: (content: string) => void;
+  onInsertEmptyMessageAfter?: (sessionId: string, afterMessageId: string, roleToInsert: ChatMessageRole.USER | ChatMessageRole.MODEL) => Promise<void>;
 }
 
 
@@ -324,10 +326,9 @@ export interface UseAudioPlayerReturn {
 }
 
 // Updated options for useAutoFetchAudio (now simpler, for auto-play)
-export interface UseAutoFetchAudioOptions {
+export interface UseAutoPlayOptions { // Renamed from UseAutoFetchAudioOptions
     currentChatSession: ChatSession | null;
-    // Callback to initiate playback of a message (likely from useAudioControls)
-    audioControlsPlayText: (originalFullText: string, baseMessageId: string, partIndexToPlay?: number) => Promise<void>;
+    playFunction: (originalFullText: string, baseMessageId: string, partIndexToPlay?: number) => Promise<void>;
 }
 
 export interface ExportConfiguration {
@@ -344,7 +345,7 @@ export interface ExportConfiguration {
   // Chat-Specific Settings
   includeChatSpecificSettings: boolean; 
 
-  // AI Characters
+  // AI Character Definitions
   includeAiCharacterDefinitions: boolean; 
 
   // API Request Logs
@@ -365,4 +366,13 @@ export interface ExportConfigurationModalProps {
   onClose: () => void;
   onSaveConfig: (newConfig: ExportConfiguration) => void; 
   onExportSelected: (config: ExportConfiguration, selectedChatIds: string[]) => void; 
+}
+
+// Type for items in the ChatAttachmentsModal
+export interface AttachmentWithContext {
+  attachment: Attachment;
+  messageId: string;
+  messageTimestamp: Date;
+  messageRole: ChatMessageRole;
+  messageContentSnippet?: string;
 }

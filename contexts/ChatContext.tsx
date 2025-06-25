@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { ChatSession, ChatMessage, GeminiSettings, Attachment, AICharacter, ApiRequestLog, ExportConfiguration, UserDefinedDefaults } from '../types';
+import { ChatSession, ChatMessage, GeminiSettings, Attachment, AICharacter, ApiRequestLog, ExportConfiguration, UserDefinedDefaults, ChatMessageRole } from '../types';
 import { useChatSessions } from '../hooks/useChatSessions';
 import { useAiCharacters } from '../hooks/useAiCharacters';
 import { useGemini } from '../hooks/useGemini';
@@ -8,11 +8,12 @@ import { useImportExport } from '../hooks/useImportExport';
 import { useAppPersistence } from '../hooks/useAppPersistence';
 import { useSidebarActions } from '../hooks/useSidebarActions';
 import { useChatInteractions } from '../hooks/useChatInteractions';
-import { useAutoFetchAudio } from '../hooks/useAutoFetchAudio';
+// Removed: import { useAutoFetchAudio } from '../hooks/useAutoFetchAudio';
 import { useAutoSend, UseAutoSendReturn } from '../hooks/useAutoSend';
 import { useUIContext } from './UIContext';
 import { EditMessagePanelAction, EditMessagePanelDetails } from '../components/EditMessagePanel';
 import { DEFAULT_SETTINGS, INITIAL_MESSAGES_COUNT } from '../constants';
+import { useMessageInjection } from '../hooks/useMessageInjection';
 
 
 // Define the shape of the Chat context data
@@ -80,6 +81,15 @@ interface ChatContextType {
   
   // From useAutoSend
   autoSendHook: UseAutoSendReturn;
+
+  // New for auto-play, will be provided by AudioContext
+  triggerAutoPlayForNewMessage: (newAiMessage: ChatMessage) => Promise<void>;
+
+  // New method for actually resetting audio cache
+  performActualAudioCacheReset: (sessionId: string, messageId: string) => Promise<void>;
+
+  // From useMessageInjection
+  handleInsertEmptyMessageAfter: (sessionId: string, afterMessageId: string, roleToInsert: ChatMessageRole.USER | ChatMessageRole.MODEL) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -102,10 +112,11 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loadedDisplayConfig, setLoadedDisplayConfig, ui.showToast
   );
 
-  const autoFetchHook = useAutoFetchAudio({
-    currentChatSession: rawCurrentChatSession,
-    audioControlsPlayText: () => Promise.resolve(), // This will be connected via AudioProvider later
-  });
+  // Placeholder for triggerAutoPlayForNewMessage, will be overridden by AudioContext
+  const placeholderTriggerAutoPlay = async (newAiMessage: ChatMessage) => {
+    // console.warn("triggerAutoPlayForNewMessage called before AudioContext is ready or connected.");
+  };
+
 
   const gemini = useGemini({
     currentChatSession: rawCurrentChatSession,
@@ -116,8 +127,16 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateChatSession(rawCurrentChatSession.id, session => session ? ({ ...session, apiRequestLogs: [...(session.apiRequestLogs || []), newLogEntry] }) : null);
       }
     },
-    onNewAIMessageFinalized: (newAiMessage) => { // Correctly define the callback
-      autoFetchHook.triggerAutoFetchForNewMessage(newAiMessage);
+    onNewAIMessageFinalized: async (newAiMessage) => {
+      // This will be updated by AudioContext once it's initialized
+      // For now, it might call the placeholder if ChatContext initializes before AudioContext connects the real function.
+      // The actual `triggerAutoPlayForNewMessage` from `audioContextValue` will be used once available.
+      const contextValue = chatContextValueRef.current;
+      if (contextValue && contextValue.triggerAutoPlayForNewMessage) {
+        await contextValue.triggerAutoPlayForNewMessage(newAiMessage);
+      } else {
+        await placeholderTriggerAutoPlay(newAiMessage);
+      }
     },
     setMessageGenerationTimes: persistence.setMessageGenerationTimes,
   });
@@ -158,6 +177,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     persistence.setMessagesToDisplayConfig, ui.showToast, chatHistory
   );
 
+  const messageInjection = useMessageInjection({
+    updateChatSession,
+    setMessagesToDisplayConfig: persistence.setMessagesToDisplayConfig,
+    messagesToDisplayConfig: persistence.messagesToDisplayConfig, // Pass the config value
+    showToast: ui.showToast,
+  });
+
   const handleNewChat = useCallback(async () => {
     await useChatSessionsHandleNewChat(persistence.setMessagesToDisplayConfig);
     ui.showToast("New chat created!", "success");
@@ -191,6 +217,22 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     ui.showToast("Character deleted!", "success");
   };
 
+  const performActualAudioCacheReset = useCallback(async (sessionId: string, messageId: string) => {
+    await updateChatSession(sessionId, session => {
+      if (!session) return null;
+      const messageIndex = session.messages.findIndex(m => m.id === messageId);
+      if (messageIndex === -1) return session;
+
+      const updatedMessages = [...session.messages];
+      updatedMessages[messageIndex] = {
+        ...updatedMessages[messageIndex],
+        cachedAudioBuffers: null, // Clear the cache
+      };
+      return { ...session, messages: updatedMessages };
+    });
+    ui.showToast("Audio cache reset for message.", "success");
+  }, [updateChatSession, ui.showToast]);
+
   const visibleMessagesForCurrentChat = useMemo(() => {
     if (!rawCurrentChatSession || !rawCurrentChatSession.id) {
         return [];
@@ -215,13 +257,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return rawCurrentChatSession.messages.slice(-numToDisplay);
   }, [rawCurrentChatSession, persistence.messagesToDisplayConfig]);
   
+  const chatContextValueRef = React.useRef<ChatContextType | null>(null);
+
   const value: ChatContextType = {
     chatHistory, setChatHistory, currentChatId, setCurrentChatId, 
     currentChatSession: rawCurrentChatSession, // Provide the raw session
     visibleMessagesForCurrentChat, // Provide the derived visible messages
     updateChatSession, handleNewChat, handleSelectChat, handleDeleteChat, isLoadingData,
     
-    // From useGemini (some are wrapped by useChatInteractions)
     isLoading: gemini.isLoading,
     currentGenerationTimeDisplay: gemini.currentGenerationTimeDisplay,
     handleSendMessage: gemini.handleSendMessage,
@@ -229,24 +272,17 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     handleCancelGeneration: gemini.handleCancelGeneration,
     handleRegenerateAIMessage: gemini.handleRegenerateAIMessage,
     handleRegenerateResponseForUserMessage: gemini.handleRegenerateResponseForUserMessage,
-    handleEditPanelSubmit: chatInteractions.handleEditPanelSubmitWrapper, // Use the wrapper
+    handleEditPanelSubmit: chatInteractions.handleEditPanelSubmitWrapper, 
 
-    // From useAiCharacters
     ...aiCharacters,
     handleAddCharacter, 
     handleEditCharacter, 
     handleDeleteCharacter,
     
-    // From useImportExport
     ...importExport,
-    
-    // From useAppPersistence
     ...persistence,
-    
-    // From useSidebarActions
     ...sidebarActions,
     
-    // From useChatInteractions (specific actions not covered by gemini context directly)
     handleDeleteMessageAndSubsequent: chatInteractions.handleDeleteMessageAndSubsequent,
     handleDeleteSingleMessageOnly: chatInteractions.handleDeleteSingleMessageOnly,
     handleLoadMoreDisplayMessages: chatInteractions.handleLoadMoreDisplayMessages,
@@ -257,7 +293,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     handleActualCopyMessage: chatInteractions.handleActualCopyMessage,
     
     autoSendHook: autoSend,
+    triggerAutoPlayForNewMessage: placeholderTriggerAutoPlay, // Initial placeholder
+    performActualAudioCacheReset, // Add the new function
+    handleInsertEmptyMessageAfter: messageInjection.handleInsertEmptyMessageAfter,
   };
+
+  chatContextValueRef.current = value;
+
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 };

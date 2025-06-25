@@ -1,4 +1,5 @@
 
+
 import { useState, useCallback, useRef } from 'react';
 import { ChatSession, TTSSettings, AudioPlayerState, UseAudioPlayerReturn, LogApiRequestCallback, Attachment } from '../types'; // Adjusted paths
 import { MAX_WORDS_PER_TTS_SEGMENT } from '../constants'; // Adjusted paths
@@ -81,7 +82,10 @@ export function useAudioControls({
     }
     const ttsSettings = chat.settings.ttsSettings;
     const message = chat.messages.find(m => m.id === baseMessageId);
-    if (!message) return;
+    if (!message) {
+      return;
+    }
+
 
     const targetSegmentId = partIndexToPlay !== undefined ? `${baseMessageId}_part_${partIndexToPlay}` : baseMessageId;
 
@@ -112,109 +116,117 @@ export function useAudioControls({
                              message.cachedAudioBuffers.length === numExpectedSegments &&
                              message.cachedAudioBuffers.every(buffer => !!buffer);
 
-    if (partIndexToPlay !== undefined) { // Specific part button clicked (play individual part)
+
+    if (partIndexToPlay !== undefined) { 
         const textSegmentToPlayNow = textSegments[partIndexToPlay];
-        if (!textSegmentToPlayNow) return;
+        if (!textSegmentToPlayNow) {
+            return;
+        }
         const uniqueSegmentId = `${baseMessageId}_part_${partIndexToPlay}`;
         const cachedBuffer = message.cachedAudioBuffers?.[partIndexToPlay];
+        // If cached, playText will play. If not, it will fetch and make ready.
         audioPlayerHook.playText(textSegmentToPlayNow, uniqueSegmentId, ttsSettings, cachedBuffer);
-    } else { // Main button clicked (partIndexToPlay is undefined)
-      const needsApiFetchForMainPlay = 
-        (numExpectedSegments > 1 && !allPartsAreCached) ||
-        (numExpectedSegments === 1 && !message.cachedAudioBuffers?.[0]);
+    } else { 
+        const firstSegmentText = textSegments[0] || "";
+        const firstSegmentId = numExpectedSegments > 1 ? `${baseMessageId}_part_0` : baseMessageId;
+        const firstSegmentCached = !!message.cachedAudioBuffers?.[0];
 
-      if (needsApiFetchForMainPlay) {
-        // This block handles fetching for:
-        // 1. Multi-part messages where not all parts are cached.
-        // 2. Single-part messages where the single part is not cached.
+        const needsAnyFetching = (numExpectedSegments > 1 && !allPartsAreCached) || (numExpectedSegments === 1 && !firstSegmentCached);
 
-        if (multiPartFetchControllersRef.current.has(baseMessageId)) {
-            // Rapid clicks while already fetching this base message; let existing fetch complete or be cancelled.
-            return; 
-        }
-
-        const controller = new AbortController();
-        multiPartFetchControllersRef.current.set(baseMessageId, controller);
-        setActiveMultiPartFetches(prev => new Set(prev).add(baseMessageId));
-        
-        const partsToFetchCount = (numExpectedSegments === 1) ? 1 : numExpectedSegments;
-        showToast(`Fetching ${partsToFetchCount} audio part${partsToFetchCount > 1 ? 's' : ''}...`, "success");
-
-        try {
-            const indicesToProcess = (numExpectedSegments === 1) ? [0] : textSegments.map((_,idx) => idx);
-
-            const results = await Promise.allSettled(
-                indicesToProcess.map(async (index) => {
-                    if (controller.signal.aborted) throw new DOMException('Aborted by user', 'AbortError');
-                    
-                    // For multi-part, if we are in this fetch block, it means not all are cached.
-                    // The original behavior was to re-fetch all segments for consistency. We maintain this.
-                    // For single part, it means its only segment is not cached, so fetch it.
-                    const audioBuffer = await generateSpeech(textSegments[index], ttsSettings, logApiRequest, controller.signal);
-                    if (controller.signal.aborted) throw new DOMException('Aborted by user', 'AbortError');
-                    return { status: 'fulfilled', value: audioBuffer, index };
-                })
-            );
-
-            if (controller.signal.aborted) {
-                 showToast("Audio fetch cancelled.", "success");
-                 return; 
+        if (needsAnyFetching) {
+            if (multiPartFetchControllersRef.current.has(baseMessageId)) { 
+                return;
             }
 
-            const newBuffers: (ArrayBuffer | null)[] = [...(message.cachedAudioBuffers || [])];
-            while(newBuffers.length < numExpectedSegments) newBuffers.push(null);
+            const controller = new AbortController();
+            multiPartFetchControllersRef.current.set(baseMessageId, controller);
+            setActiveMultiPartFetches(prev => new Set(prev).add(baseMessageId));
+            
+            const partsToFetchCount = textSegments.filter((_, idx) => !message.cachedAudioBuffers?.[idx]).length;
+            if (partsToFetchCount > 0) {
+                showToast(`Fetching ${partsToFetchCount} audio part${partsToFetchCount > 1 ? 's' : ''}...`, "success");
+            }
 
-            let allSucceeded = true;
-            results.forEach((result) => {
-                if (result.status === 'fulfilled' && result.value?.value) {
-                    newBuffers[result.value.index] = result.value.value as ArrayBuffer;
+            try {
+                let newBuffers: (ArrayBuffer | null)[] = message.cachedAudioBuffers ? [...message.cachedAudioBuffers] : [];
+                while(newBuffers.length < numExpectedSegments) newBuffers.push(null);
+
+                let allFetchesSucceededForPlayback = true;
+
+                const fetchPromises = textSegments.map(async (segmentText, index) => {
+                    if (controller.signal.aborted) {
+                        throw new DOMException('Aborted by user', 'AbortError');
+                    }
+                    if (!newBuffers[index]) { 
+                        const audioBuffer = await generateSpeech(segmentText, ttsSettings, logApiRequest, controller.signal);
+                        if (controller.signal.aborted) {
+                            throw new DOMException('Aborted by user', 'AbortError');
+                        }
+                        newBuffers[index] = audioBuffer;
+                    }
+                    return { status: 'fulfilled', index }; 
+                });
+
+                const results = await Promise.allSettled(fetchPromises);
+
+
+                if (controller.signal.aborted) {
+                     showToast("Audio fetch cancelled.", "success");
+                     return; 
+                }
+
+                results.forEach((result, i) => { 
+                    if (result.status === 'rejected') {
+                        allFetchesSucceededForPlayback = false;
+                        console.error(`[AudioControls] Failed to fetch audio for part ${i + 1} of ${baseMessageId}:`, result.reason);
+                    }
+                });
+                
+                await updateChatSession(chat.id, (session) => {
+                    if (!session) return null;
+                    const msgIndex = session.messages.findIndex(m => m.id === baseMessageId);
+                    if (msgIndex === -1) return session;
+                    const updatedMessages = [...session.messages];
+                    updatedMessages[msgIndex] = { ...updatedMessages[msgIndex], cachedAudioBuffers: newBuffers };
+                    return { ...session, messages: updatedMessages };
+                });
+
+                // After fetching, do not auto-play. Just show toast.
+                if (allFetchesSucceededForPlayback && partsToFetchCount > 0) {
+                    showToast("Audio fetched and ready.", "success");
+                } else if (!allFetchesSucceededForPlayback && partsToFetchCount > 0) {
+                    showToast("Some audio parts failed to fetch. Playable parts are ready.", "error");
+                }
+                // If newBuffers[0] is not available, cannot play.
+                if (!newBuffers[0] && !allFetchesSucceededForPlayback) {
+                     showToast("Failed to fetch initial audio part. Cannot play.", "error");
+                }
+                // If partsToFetchCount was 0, it means everything was already cached. 
+                // The `else` block below will handle playing cached audio.
+
+            } catch (error: any) {
+                if (error.name !== 'AbortError') {
+                    console.error(`[AudioControls] Error during main button audio fetch for ${baseMessageId}:`, error);
+                    showToast("Failed to fetch audio: " + error.message, "error");
                 } else {
-                    allSucceeded = false;
-                    const failedIndex = result.status === 'rejected' ? (result.reason as any)?.index ?? indicesToProcess.find(i => !(results as any).find((r: any) => r.value?.index === i)) ?? 'unknown' : (result.value as any)?.index ?? 'unknown';
-                    console.error(`Failed to fetch audio for part ${typeof failedIndex === 'number' ? failedIndex + 1 : failedIndex}:`, result.status === 'rejected' ? result.reason : 'Unknown error during segment fetch');
-                    if (typeof failedIndex === 'number') {
-                        newBuffers[failedIndex] = null; 
+                     if (!controller.signal.aborted) { 
+                        showToast("Audio fetch process was aborted.", "success");
                     }
                 }
-            });
-
-            await updateChatSession(chat.id, (session) => {
-                if (!session) return null;
-                const msgIndex = session.messages.findIndex(m => m.id === baseMessageId);
-                if (msgIndex === -1) return session;
-                const updatedMessages = [...session.messages];
-                updatedMessages[msgIndex] = { ...updatedMessages[msgIndex], cachedAudioBuffers: newBuffers };
-                return { ...session, messages: updatedMessages };
-            });
-
-            if (allSucceeded) {
-                showToast("Audio fetched and ready. Click play again.", "success");
-            } else {
-                showToast("Some audio parts failed to fetch. Check console.", "error");
+            } finally {
+                if (multiPartFetchControllersRef.current.get(baseMessageId) === controller) {
+                    multiPartFetchControllersRef.current.delete(baseMessageId);
+                }
+                setActiveMultiPartFetches(prev => {
+                    const next = new Set(prev);
+                    next.delete(baseMessageId);
+                    return next;
+                });
             }
-
-        } catch (error: any) {
-            if (error.name !== 'AbortError') { // AbortError is handled by the cancellation UI
-                console.error("Error during main button audio fetch:", error);
-                showToast("Failed to fetch audio: " + error.message, "error");
-            }
-        } finally {
-            if (multiPartFetchControllersRef.current.get(baseMessageId) === controller) {
-                multiPartFetchControllersRef.current.delete(baseMessageId);
-            }
-            setActiveMultiPartFetches(prev => { const next = new Set(prev); next.delete(baseMessageId); return next; });
+        } else { 
+            // All parts were already cached when the button was clicked. Play it.
+            audioPlayerHook.playText(firstSegmentText, firstSegmentId, ttsSettings, message.cachedAudioBuffers?.[0]);
         }
-
-      } else { // Main button clicked, AND ( (single-part AND cached) OR (multi-part AND all cached) )
-          // Play the first part if all parts are cached or if it's a single cached part.
-          const textToPlay = textSegments[0] || ""; 
-          let uniqueSegmentIdForPlayer = baseMessageId;
-          if (numExpectedSegments > 1) { 
-              uniqueSegmentIdForPlayer = `${baseMessageId}_part_0`;
-          }
-          const cachedBuffer = message.cachedAudioBuffers?.[0];
-          audioPlayerHook.playText(textToPlay, uniqueSegmentIdForPlayer, ttsSettings, cachedBuffer);
-      }
     }
   }, [currentChatSession, showToast, logApiRequest, audioPlayerHook, updateChatSession, isAutoFetchingSegment, onCancelAutoFetchSegment, handleCancelMultiPartFetch]);
 
@@ -238,7 +250,7 @@ export function useAudioControls({
   }, [audioPlayerHook]);
 
 
-  const handleDownloadAudio = useCallback(async (sessionId: string, messageId: string) => {
+  const handleDownloadAudio = useCallback(async (sessionId: string, messageId: string, userProvidedName?: string) => {
     const chat = currentChatSession; 
     const message = chat?.messages.find(m => m.id === messageId);
 
@@ -261,12 +273,20 @@ export function useAudioControls({
 
     const desiredMimeType = 'audio/mpeg';
     const fileExtension = '.mp3';
+    
+    let finalFilename: string;
 
-    const words = message.content.trim().split(/\s+/);
-    const firstWords = words.slice(0, 7).join(' ');
-    const baseName = sanitizeFilename(firstWords, 50);
-    const uniqueIdSuffix = message.id.substring(message.id.length - 6);
-    const finalFilename = `${baseName || 'audio'}_${uniqueIdSuffix}${fileExtension}`;
+    if (userProvidedName && userProvidedName.trim() !== '') {
+        finalFilename = `${sanitizeFilename(userProvidedName.trim(), 100)}${fileExtension}`;
+    } else {
+        // Fallback to old naming if no name provided (though prompt should ensure one)
+        const words = message.content.trim().split(/\s+/);
+        const firstWords = words.slice(0, 7).join(' ');
+        const baseName = sanitizeFilename(firstWords, 50);
+        const uniqueIdSuffix = message.id.substring(message.id.length - 6);
+        finalFilename = `${baseName || 'audio'}_${uniqueIdSuffix}${fileExtension}`;
+    }
+
 
     const combinedPcm = audioUtils.concatenateAudioBuffers(message.cachedAudioBuffers!.filter(b => b !== null) as ArrayBuffer[]);
     if (combinedPcm.byteLength === 0) {
@@ -275,7 +295,7 @@ export function useAudioControls({
     }
     const audioBlob = audioUtils.createAudioFileFromPcm(combinedPcm, desiredMimeType);
     triggerDownload(audioBlob, finalFilename); 
-    showToast("Audio download started.", "success");
+    showToast(`Audio download started as "${finalFilename}".`, "success");
   }, [currentChatSession, showToast]);
   
   const handleResetAudioCache = useCallback((sessionId: string, messageId: string) => {

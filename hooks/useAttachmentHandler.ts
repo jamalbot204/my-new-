@@ -1,8 +1,12 @@
 
-import { useState, useCallback } from 'react';
+
+
+
+import { useState, useCallback, useRef } from 'react';
 import { Attachment, AttachmentUploadState, LogApiRequestCallback } from '../types';
-import { uploadFileViaApi } from '../services/geminiService';
+import { uploadFileViaApi, deleteFileViaApi } from '../services/geminiService';
 import { SUPPORTED_IMAGE_MIME_TYPES, SUPPORTED_VIDEO_MIME_TYPES } from '../constants';
+import { getDisplayFileType } from '../services/utils';
 
 interface UseAttachmentHandlerProps {
   logApiRequestCallback: LogApiRequestCallback;
@@ -14,6 +18,7 @@ export function useAttachmentHandler({
   isInfoInputModeActive,
 }: UseAttachmentHandlerProps) {
   const [selectedFiles, setSelectedFiles] = useState<Attachment[]>([]);
+  const activeUploadControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   const updateAttachmentState = useCallback((id: string, updates: Partial<Attachment>) => {
     setSelectedFiles(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
@@ -28,11 +33,19 @@ export function useAttachmentHandler({
       error: undefined,
     });
 
+    const controller = new AbortController();
+    activeUploadControllersRef.current.set(attachmentId, controller);
+
     try {
       const uploadResult = await uploadFileViaApi(
         file,
         logApiRequestCallback,
         (state, fileApiNameFromCb, messageFromCb, progressFromCb) => {
+          // Check if the signal has been aborted before updating state for this attachment
+          if (controller.signal.aborted) {
+            console.log(`Upload for ${attachmentId} was aborted, skipping state update for ${state}`);
+            return; 
+          }
           updateAttachmentState(attachmentId, {
             uploadState: state,
             statusMessage: messageFromCb || state.replace(/_/g, ' '),
@@ -40,9 +53,18 @@ export function useAttachmentHandler({
             progress: progressFromCb,
             isLoading: state === 'uploading_to_cloud' || state === 'processing_on_server',
           });
-        }
+        },
+        controller.signal // Pass the signal
       );
 
+      if (controller.signal.aborted) {
+          // If aborted during/after uploadFileViaApi but before this block,
+          // and if fileApiName was obtained, removal logic (deleteFileViaApi)
+          // would have been (or will be) triggered by removeSelectedFile.
+          // No further state update needed here for the UI element that's being removed.
+          return;
+      }
+      
       if (uploadResult.error) {
         updateAttachmentState(attachmentId, {
           error: uploadResult.error,
@@ -61,12 +83,27 @@ export function useAttachmentHandler({
         });
       }
     } catch (err: any) {
-      updateAttachmentState(attachmentId, {
-        error: err.message || "Cloud upload failed unexpectedly.",
-        uploadState: 'error_cloud_upload',
-        statusMessage: `Cloud Error: ${err.message || "Upload failed."}`,
-        isLoading: false,
-      });
+      if (err.name === 'AbortError') {
+          // Already handled by abort signal, UI element will be removed.
+          // Or if not removed yet, state will reflect cancellation.
+           updateAttachmentState(attachmentId, {
+              error: "Upload cancelled.",
+              uploadState: 'error_cloud_upload', // Or a new 'cancelled' state if desired
+              statusMessage: "Upload cancelled by user.",
+              isLoading: false,
+          });
+      } else if (!controller.signal.aborted) { // Only update if not aborted by a concurrent removeSelectedFile
+        updateAttachmentState(attachmentId, {
+          error: err.message || "Cloud upload failed unexpectedly.",
+          uploadState: 'error_cloud_upload',
+          statusMessage: `Cloud Error: ${err.message || "Upload failed."}`,
+          isLoading: false,
+        });
+      }
+    } finally {
+        if (activeUploadControllersRef.current.get(attachmentId) === controller) {
+            activeUploadControllersRef.current.delete(attachmentId);
+        }
     }
   }, [logApiRequestCallback, updateAttachmentState]);
 
@@ -126,15 +163,9 @@ export function useAttachmentHandler({
           updateAttachmentState(attachmentId, {
               base64Data: rawBase64Data,
               dataUrl: (fileTypeForApp === 'image' || fileTypeForApp === 'video') ? dataUrlForPreview : undefined,
-              // Keep cloud state if already uploading/processed by cloud
-              // This can happen if processCloudUpload was called before this onload finished (unlikely but possible)
-              uploadState: ['uploading_to_cloud', 'processing_on_server', 'completed_cloud_upload'].includes(newAttachmentInitial.uploadState || '') 
-                           ? newAttachmentInitial.uploadState 
-                           : 'completed',
-              statusMessage: ['uploading_to_cloud', 'processing_on_server', 'completed_cloud_upload'].includes(newAttachmentInitial.uploadState || '')
-                           ? newAttachmentInitial.statusMessage
-                           : 'Preview ready (if applicable), awaiting cloud sync.',
-              isLoading: ['uploading_to_cloud', 'processing_on_server'].includes(newAttachmentInitial.uploadState || ''),
+              uploadState: 'completed', // Client-side read complete, cloud upload will manage its own states
+              statusMessage: 'Preview ready. Initiating cloud sync...',
+              isLoading: true, // Set to true as cloud upload is next
           });
           processCloudUpload(file, attachmentId);
       };
@@ -160,8 +191,34 @@ export function useAttachmentHandler({
   }, [handleFileSelection, isInfoInputModeActive]);
 
   const removeSelectedFile = useCallback((id: string) => {
+    const attachmentToRemove = selectedFiles.find(f => f.id === id);
+
+    if (attachmentToRemove) {
+      const controller = activeUploadControllersRef.current.get(id);
+      if (controller) {
+        controller.abort();
+        activeUploadControllersRef.current.delete(id);
+      }
+
+      if (attachmentToRemove.fileApiName && 
+          (attachmentToRemove.uploadState === 'uploading_to_cloud' || 
+           attachmentToRemove.uploadState === 'processing_on_server' || 
+           attachmentToRemove.uploadState === 'completed_cloud_upload' ||
+           attachmentToRemove.error // even if errored, if it has a fileApiName, try to delete
+          )
+      ) {
+        deleteFileViaApi(attachmentToRemove.fileApiName, logApiRequestCallback)
+          .then(() => {
+            console.log(`Successfully deleted orphaned file ${attachmentToRemove.fileApiName} from cloud.`);
+          })
+          .catch(err => {
+            // Log benignly, as this is a cleanup effort.
+            console.warn(`Failed to delete file ${attachmentToRemove.fileApiName} from cloud during removal:`, err);
+          });
+      }
+    }
     setSelectedFiles(prev => prev.filter(file => file.id !== id));
-  }, []);
+  }, [selectedFiles, logApiRequestCallback]);
 
   const getValidAttachmentsToSend = useCallback((): Attachment[] => {
     return selectedFiles.filter(f => 
@@ -176,8 +233,19 @@ export function useAttachmentHandler({
   }, [selectedFiles]);
 
   const resetSelectedFiles = useCallback(() => {
+    // Abort any ongoing uploads before clearing
+    selectedFiles.forEach(file => {
+        const controller = activeUploadControllersRef.current.get(file.id);
+        if (controller) {
+            controller.abort();
+            activeUploadControllersRef.current.delete(file.id);
+        }
+        // Note: This doesn't trigger cloud deletion here, assuming reset is a full clear
+        // and not necessarily requiring individual cleanup like a targeted removal.
+        // If cloud cleanup is desired on full reset, it would need to be added.
+    });
     setSelectedFiles([]);
-  }, []);
+  }, [selectedFiles]);
 
   const getFileProgressDisplay = useCallback((file: Attachment): string => {
     const totalSizeMB = (file.size / 1024 / 1024).toFixed(1);
@@ -202,14 +270,6 @@ export function useAttachmentHandler({
             return file.statusMessage || `Waiting... (${totalSizeMB}MB)`;
     }
   }, []);
-  
-  const getDisplayFileType = useCallback((file: Attachment): string => {
-    if (file.type === 'image') return "Image";
-    if (file.type === 'video') return "Video";
-    if (file.mimeType === 'application/pdf') return "PDF";
-    if (file.mimeType.startsWith('text/')) return "Text";
-    return "File";
-  }, []);
 
 
   return {
@@ -221,6 +281,6 @@ export function useAttachmentHandler({
     isAnyFileStillProcessing,
     resetSelectedFiles,
     getFileProgressDisplay,
-    getDisplayFileType,
+    getDisplayFileType, // Now refers to the imported utility
   };
 }

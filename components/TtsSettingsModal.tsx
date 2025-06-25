@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
 import { TTSSettings, TTSModelId, TTSVoiceId } from '../types';
-import { DEFAULT_TTS_SETTINGS, MAX_WORDS_PER_TTS_SEGMENT } from '../constants';
+import { DEFAULT_TTS_SETTINGS } from '../constants';
 import { CloseIcon, PencilIcon } from './Icons';
 import { TTS_MODELS, TTS_VOICES } from '../constants';
 import InstructionEditModal from './InstructionEditModal';
@@ -17,7 +18,12 @@ const TtsSettingsModal: React.FC = () => {
 
   useEffect(() => {
     if (isTtsSettingsModalOpen && currentChatSession) {
-      setLocalTtsSettings(currentChatSession.settings.ttsSettings || DEFAULT_TTS_SETTINGS);
+      // Ensure that maxWordsPerSegment is correctly initialized (it can be undefined)
+      const currentMaxWords = currentChatSession.settings.ttsSettings?.maxWordsPerSegment;
+      setLocalTtsSettings({
+        ...(currentChatSession.settings.ttsSettings || DEFAULT_TTS_SETTINGS),
+        maxWordsPerSegment: currentMaxWords, // Explicitly set, allowing undefined
+      });
     }
   }, [isTtsSettingsModalOpen, currentChatSession]);
 
@@ -31,15 +37,24 @@ const TtsSettingsModal: React.FC = () => {
     setLocalTtsSettings(prev => ({ ...prev, voice: e.target.value as TTSVoiceId }));
   };
   
-  const handleAutoFetchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalTtsSettings(prev => ({ ...prev, autoFetchAudioEnabled: e.target.checked }));
+  const handleAutoPlayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalTtsSettings(prev => ({ ...prev, autoPlayNewMessages: e.target.checked }));
   };
 
   const handleMaxWordsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
+    const valueString = e.target.value;
+    if (valueString === '') {
+        setLocalTtsSettings(prev => ({
+            ...prev,
+            maxWordsPerSegment: undefined // Empty means no limit
+        }));
+        return;
+    }
+    const value = parseInt(valueString, 10);
     setLocalTtsSettings(prev => ({
       ...prev,
-      maxWordsPerSegment: isNaN(value) ? DEFAULT_TTS_SETTINGS.maxWordsPerSegment : Math.max(50, Math.min(1000, value)) 
+      // Only positive integers are valid limits, otherwise no limit (undefined)
+      maxWordsPerSegment: (Number.isInteger(value) && value > 0) ? value : undefined
     }));
   };
 
@@ -97,8 +112,17 @@ const TtsSettingsModal: React.FC = () => {
             </div>
             <div>
               <label htmlFor="tts-max-words" className="block text-sm font-medium text-gray-300 mb-1">Max Words Per TTS Segment</label>
-              <input type="number" id="tts-max-words" name="tts-max-words" className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200" value={localTtsSettings.maxWordsPerSegment || ''} onChange={handleMaxWordsChange} min="50" max="1000" step="10" placeholder={`Default: ${DEFAULT_TTS_SETTINGS.maxWordsPerSegment}`} />
-              <p className="text-xs text-gray-400 mt-1">Defines how long each audio segment will be (50-1000 words).</p>
+              <input 
+                type="number" 
+                id="tts-max-words" 
+                name="tts-max-words" 
+                className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200" 
+                value={localTtsSettings.maxWordsPerSegment ?? ''} 
+                onChange={handleMaxWordsChange} 
+                step="10" 
+                placeholder="Default: No split, or enter number" 
+              />
+              <p className="text-xs text-gray-400 mt-1">Defines max words per audio segment. Empty or invalid number for no split. Positive number to set limit.</p>
             </div>
             <div className="border-t border-gray-700 pt-4">
               <label className="block text-sm font-medium text-gray-300 mb-1">System Instruction (for TTS Model)</label>
@@ -110,8 +134,8 @@ const TtsSettingsModal: React.FC = () => {
             </div>
             <div className="border-t border-gray-700 pt-4">
               <div className="flex items-center">
-                <input id="autoFetchAudioEnabled" name="autoFetchAudioEnabled" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localTtsSettings.autoFetchAudioEnabled ?? false} onChange={handleAutoFetchChange} />
-                <label htmlFor="autoFetchAudioEnabled" className="ml-2 block text-sm text-gray-300">Auto-Play New AI Messages</label>
+                <input id="autoPlayNewMessages" name="autoPlayNewMessages" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localTtsSettings.autoPlayNewMessages ?? false} onChange={handleAutoPlayChange} />
+                <label htmlFor="autoPlayNewMessages" className="ml-2 block text-sm text-gray-300">Auto-Play New AI Messages</label>
               </div>
               <p className="text-xs text-gray-400 mt-1 ml-6">If enabled, new AI messages will automatically start playing after a short delay.</p>
             </div>

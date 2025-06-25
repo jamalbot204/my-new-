@@ -1,7 +1,10 @@
 
+
 // Fix: Removed incorrect import of 'ChatSession as GeminiChatSessionSDK'. Chat config is GenerationConfig.
 import { GoogleGenAI, Chat, GenerateContentResponse, Part, SafetySetting as GeminiSafetySettingFromSDK, Content, Tool, GenerateContentParameters, GenerationConfig as GeminiGenerationConfigSDK, FileData } from "@google/genai"; // Use SDK's SafetySetting type
 import { ChatMessage, ChatMessageRole, GeminiSettings, GeminiHistoryEntry, SafetySetting, HarmCategory, HarmBlockThreshold, GroundingChunk, Attachment, ApiRequestLog, ApiRequestPayload, AICharacter, LoggedGeminiGenerationConfig, FileUploadResult, GeminiFileResource, AttachmentUploadState } from '../types';
+import { MODELS_SENDING_THINKING_CONFIG_API } from "../constants"; // Updated import
+
 
 const API_KEY_ENV = process.env.API_KEY;
 
@@ -31,7 +34,7 @@ const activeChatInstances = new Map<string, Chat>();
 // 2. If 'fileUri' is not available but 'base64Data' is (e.g., as a fallback or older data), an 'inlineData' part is created. This sends the file content base64 encoded.
 // 3. The 'dataUrl' field on an Attachment object is primarily for client-side UI previews (e.g., in MessageItem or ChatView's selected files tray) and is NOT directly used for API communication with Gemini models.
 
-function mapMessagesToGeminiHistoryInternal(
+export function mapMessagesToGeminiHistoryInternal(
   messages: ChatMessage[],
   settings?: GeminiSettings
 ): GeminiHistoryEntry[] {
@@ -232,11 +235,15 @@ async function pollFileStateUntilActive(
     ai: GoogleGenAI, 
     fileApiName: string, 
     logApiRequestCallback: LogApiRequestCallback,
-    onStateChangeForPolling?: (state: AttachmentUploadState, message?: string) => void
+    onStateChangeForPolling?: (state: AttachmentUploadState, message?: string) => void,
+    signal?: AbortSignal // Added signal
 ): Promise<GeminiFileResource> {
     let attempts = 0;
     onStateChangeForPolling?.('processing_on_server', `Server processing file...`);
     while (attempts < MAX_POLLING_ATTEMPTS) {
+        if (signal?.aborted) {
+          throw new DOMException('Aborted by user', 'AbortError');
+        }
         attempts++;
         try {
             if (logApiRequestCallback) {
@@ -264,7 +271,11 @@ async function pollFileStateUntilActive(
             }
             // Still PROCESSING, wait and poll again
             await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
+            if (signal?.aborted) { // Check again after timeout
+              throw new DOMException('Aborted by user', 'AbortError');
+            }
         } catch (error: any) {
+            if (error.name === 'AbortError') throw error; // Re-throw AbortError immediately
             console.error(`Polling error for ${fileApiName}, attempt ${attempts}:`, error);
             onStateChangeForPolling?.('error_cloud_upload', `Polling failed: ${error.message || 'Unknown error'}`);
             throw error; // Rethrow to stop polling on significant errors
@@ -278,7 +289,8 @@ async function pollFileStateUntilActive(
 export async function uploadFileViaApi(
   fileToUpload: globalThis.File, // Use the global File type
   logApiRequestCallback: LogApiRequestCallback,
-  onStateChange?: (state: AttachmentUploadState, fileApiName?: string, message?: string, progress?: number) => void
+  onStateChange?: (state: AttachmentUploadState, fileApiName?: string, message?: string, progress?: number) => void,
+  signal?: AbortSignal // Added signal
 ): Promise<FileUploadResult> {
   // IMPORTANT: This function sends the raw 'fileToUpload' to the Gemini File API.
   // Any client-side generation of 'dataUrl' or 'base64Data' (e.g., in ChatView.tsx)
@@ -286,6 +298,12 @@ export async function uploadFileViaApi(
   const ai = getAiInstance();
   if (!ai) {
     const errorMsg = "API Key not configured for File API.";
+    onStateChange?.('error_cloud_upload', undefined, errorMsg);
+    return { mimeType: fileToUpload.type, originalFileName: fileToUpload.name, size: fileToUpload.size, error: errorMsg };
+  }
+
+  if (signal?.aborted) {
+    const errorMsg = "Upload cancelled before starting.";
     onStateChange?.('error_cloud_upload', undefined, errorMsg);
     return { mimeType: fileToUpload.type, originalFileName: fileToUpload.name, size: fileToUpload.size, error: errorMsg };
   }
@@ -300,11 +318,23 @@ export async function uploadFileViaApi(
         });
     }
 
+    // Note: ai.files.upload does not directly support AbortSignal.
+    // Cancellation during this specific network call is not possible via this signal.
+    // The signal will be primarily used for the polling phase.
     const initialFileResource = await ai.files.upload({
         file: fileToUpload,
         // name: `your-desired-resource-name/${fileToUpload.name}` // Optional: if you need to control the resource name
         // mimeType is inferred by the SDK from the File object (fileToUpload.type)
     }) as GeminiFileResource;
+
+    if (signal?.aborted) { // Check immediately after upload attempt
+      if (initialFileResource.name) { // If upload succeeded enough to get a name, attempt deletion
+         try {
+            await deleteFileViaApi(initialFileResource.name, logApiRequestCallback);
+         } catch (delErr) { console.warn("Failed to delete file after aborting during initial upload phase:", delErr); }
+      }
+      throw new DOMException('Aborted by user', 'AbortError');
+    }
 
     if (logApiRequestCallback && initialFileResource) {
         logApiRequestCallback({
@@ -324,7 +354,7 @@ export async function uploadFileViaApi(
         size: parseInt(initialFileResource.sizeBytes || String(fileToUpload.size), 10),
       };
     } else if (initialFileResource.state === 'PROCESSING') {
-      const finalFileResource = await pollFileStateUntilActive(ai, initialFileResource.name, logApiRequestCallback, (state, message) => onStateChange?.(state, initialFileResource.name, message));
+      const finalFileResource = await pollFileStateUntilActive(ai, initialFileResource.name, logApiRequestCallback, (state, message) => onStateChange?.(state, initialFileResource.name, message), signal);
       return {
         fileUri: finalFileResource.uri,
         fileApiName: finalFileResource.name,
@@ -342,6 +372,11 @@ export async function uploadFileViaApi(
         return { mimeType: fileToUpload.type, originalFileName: fileToUpload.name, size: fileToUpload.size, error: errorMsg };
     }
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+        const errorMsg = "Upload cancelled by user.";
+        onStateChange?.('error_cloud_upload', undefined, errorMsg); // Use undefined for fileApiName if not known
+        return { mimeType: fileToUpload.type, originalFileName: fileToUpload.name, size: fileToUpload.size, error: errorMsg };
+    }
     console.error("File API upload error:", error);
     const errorMsg = error.message || "An unknown error occurred during file upload.";
     onStateChange?.('error_cloud_upload', undefined, `Error: ${errorMsg}`);
@@ -406,6 +441,95 @@ export interface UserMessageInput {
 }
 
 export type LogApiRequestCallback = (logDetails: Omit<ApiRequestLog, 'id' | 'timestamp'>) => void;
+
+function formatGeminiError(error: any, requestPayloadForContext?: ApiRequestPayload): string {
+  // Log the full error object structure for developers, in case it changes or has more info
+  // This could be very verbose.
+  // console.debug("Full Gemini API Error Object:", JSON.stringify(error, null, 2));
+
+  let detailedMessage = "Gemini API Error: ";
+
+  // Primary message extraction
+  if (error.message) {
+    detailedMessage += error.message;
+  } else if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) {
+    detailedMessage += error.response.data.error.message;
+  } else if (typeof error === 'string') {
+    detailedMessage = error;
+  } else {
+    detailedMessage += "An unknown error occurred.";
+  }
+  
+  const httpStatusCode = error.response?.status || error.code; // GoogleGenAIError often has 'code' directly
+  if (httpStatusCode) {
+    detailedMessage += ` (Status Code: ${httpStatusCode})`;
+  }
+
+  // Extracting deeper details if available (often under response.data.error.details for HTTP errors)
+  let errorDetailsString = "";
+  try {
+    const geminiErrorDetails = error.response?.data?.error?.details;
+    if (geminiErrorDetails && Array.isArray(geminiErrorDetails) && geminiErrorDetails.length > 0) {
+      errorDetailsString = geminiErrorDetails.map(d => typeof d === 'object' ? JSON.stringify(d) : String(d)).join(", ");
+    } else if (error.details && (!Array.isArray(error.details) || error.details.length > 0)) { // General 'details' property
+      errorDetailsString = typeof error.details === 'object' ? JSON.stringify(error.details) : String(error.details);
+    }
+    if (errorDetailsString) {
+      detailedMessage += `\nDetails: ${errorDetailsString}`;
+    }
+  } catch (e) { /* ignore serialization errors for details */ }
+  
+  if (error.cause) {
+      detailedMessage += `\nCause: ${typeof error.cause === 'object' ? JSON.stringify(error.cause) : String(error.cause)}`;
+  }
+
+  // Contextual hints based on request and error code
+  let involvedFileUri = false;
+  if (requestPayloadForContext?.contents) {
+    const contentsArray = Array.isArray(requestPayloadForContext.contents) ? requestPayloadForContext.contents : [requestPayloadForContext.contents];
+    for (const contentItem of contentsArray) {
+      if (contentItem && typeof contentItem === 'object' && 'parts' in contentItem && Array.isArray(contentItem.parts)) {
+        for (const part of contentItem.parts) {
+          if (part && typeof part === 'object' && 'fileData' in part && (part.fileData as FileData)?.fileUri) {
+            involvedFileUri = true;
+            break;
+          }
+        }
+      }
+      if (involvedFileUri) break;
+    }
+  }
+  // Also check history if it was part of the context for this specific error
+  if (!involvedFileUri && requestPayloadForContext?.history) {
+      for (const historyItem of requestPayloadForContext.history) {
+          if (historyItem && Array.isArray(historyItem.parts)) {
+              for (const part of historyItem.parts) {
+                  if (part && typeof part === 'object' && 'fileData' in part && (part.fileData as FileData)?.fileUri) {
+                      involvedFileUri = true;
+                      break;
+                  }
+              }
+          }
+          if (involvedFileUri) break;
+      }
+  }
+
+  if (involvedFileUri && (httpStatusCode === 500 || httpStatusCode === 400)) { // 400 can also indicate bad file URI
+    detailedMessage += "\nSuggestion: If your request included file attachments via URLs (fileUri), this error might be due to an invalid or inaccessible file URL. Please verify the attachments.";
+  }
+  
+  if (detailedMessage.includes("Internal error encountered.") && (httpStatusCode === 500 || httpStatusCode === 503)) {
+      detailedMessage += "\nThis is often a temporary issue on the Google server. Retrying later might resolve it.";
+  }
+  if (detailedMessage.includes("The model is overloaded. Please try again later.") && httpStatusCode === 503) {
+       detailedMessage += "\n(Also known as a 503 Service Unavailable error).";
+  }
+   if (detailedMessage.includes("Resource has been exhausted") && (httpStatusCode === 429)) {
+       detailedMessage += "\nThis indicates you may have exceeded your API quota or rate limits.";
+  }
+
+  return detailedMessage;
+}
 
 
 export async function getFullChatResponse( 
@@ -481,16 +605,12 @@ export async function getFullChatResponse(
   }
 
   if (messageParts.length === 0) { 
-      // This check ensures we don't send an entirely empty message (no text, no valid attachments)
-      // This logic path should ideally be caught by `useGemini` before calling this function.
       const hasValidAttachments = userMessageInput.attachments && userMessageInput.attachments.some(att => (att.fileUri && att.uploadState === 'completed_cloud_upload') || (att.base64Data && !att.error));
       if (!effectiveUserText.trim() && !hasValidAttachments) {
           onError("Cannot send an empty message with no valid attachments.", false);
           onComplete();
           return;
       }
-      // If somehow messageParts is still empty (e.g. text was whitespace, all attachments invalid), add a default empty text part.
-      // This is a final safeguard, as the above `unshift` should handle most cases for attachment-only messages.
       if(messageParts.length === 0) {
         messageParts.push({ text: "" });
       }
@@ -521,9 +641,9 @@ export async function getFullChatResponse(
   const configForChatCreate: any = {}; 
   let finalSystemInstructionText: string | undefined = undefined;
 
-  if (characterForCall && characterForCall.systemInstruction) { // Character-specific system instruction
+  if (characterForCall && characterForCall.systemInstruction) { 
       finalSystemInstructionText = characterForCall.systemInstruction;
-  } else if (combinedSettings.systemInstruction) { // General system instruction
+  } else if (combinedSettings.systemInstruction) { 
       finalSystemInstructionText = combinedSettings.systemInstruction;
   }
 
@@ -544,6 +664,11 @@ export async function getFullChatResponse(
   if (combinedSettings.useGoogleSearch) {
     configForChatCreate.tools = [{googleSearch: {}}];
   }
+  
+  if (MODELS_SENDING_THINKING_CONFIG_API.includes(model) && combinedSettings.thinkingBudget !== undefined) {
+    configForChatCreate.thinkingConfig = { thinkingBudget: combinedSettings.thinkingBudget };
+  }
+
 
   let chatForThisMessage: Chat;
   
@@ -562,27 +687,40 @@ export async function getFullChatResponse(
     }
     chatForThisMessage = ai.chats.create({
       model: model,
-      history: historyForChatInitialization as Content[], // Cast GeminiHistoryEntry[] to Content[]
+      history: historyForChatInitialization as Content[], 
       config: configForChatCreate as GeminiGenerationConfigSDK, 
     });
   } catch (error: any) {
-    console.error("Error creating chat session:", error, "Cache Key:", cacheKeyForSDKInstance);
+    // Construct payload for error formatting context
+    const contextPayloadForErrorFormatting: ApiRequestPayload = {
+        model: model,
+        history: historyForChatInitialization,
+        config: configForChatCreate as Partial<LoggedGeminiGenerationConfig>,
+    };
+    const formattedError = formatGeminiError(error, contextPayloadForErrorFormatting);
+    console.error("Error creating chat session:", formattedError, "Cache Key:", cacheKeyForSDKInstance);
+
     if (signal?.aborted) {
-      onError(`Chat initialization aborted. Original error: ${error.message || String(error)}`, true);
+      onError(`Chat initialization aborted. Original error: ${formattedError}`, true);
     } else {
-      onError(`Failed to initialize chat: ${error.message || String(error)}`, false);
+      onError(`Failed to initialize chat: ${formattedError}`, false);
     }
     onComplete();
     return;
   }
   
+  const requestPayloadForSendMessage: ApiRequestPayload = {
+      model: model,
+      contents: [{ role: 'user', parts: JSON.parse(JSON.stringify(messageParts)) }],
+      config: configForChatCreate as Partial<LoggedGeminiGenerationConfig> // Config is for the chat instance
+  };
+
   try {
     if (combinedSettings.debugApiRequests) {
        logApiRequestCallback({
         requestType: 'chat.sendMessage',
-        payload: {
-          model: model, 
-          contents: [{ role: 'user', parts: JSON.parse(JSON.stringify(messageParts)) }], // Log payload structured as Content[]
+        payload: { // Only log what's directly sent to sendMessage
+          contents: JSON.parse(JSON.stringify(messageParts))
         },
         characterName: characterNameForLogging,
         apiSessionId: cacheKeyForSDKInstance 
@@ -601,20 +739,12 @@ export async function getFullChatResponse(
     onFullResponse(responseData);
     onComplete();
   } catch (error: any) {
-    console.error("Error sending message:", error);
-    let errorMessage = "Failed to get response from AI.";
-    if (error.message) {
-        errorMessage = error.message;
-    } else if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) { 
-        errorMessage = error.response.data.error.message;
-    } else if (typeof error === 'string') {
-        errorMessage = error;
-    }
-
+    const formattedError = formatGeminiError(error, requestPayloadForSendMessage);
+    console.error("Error sending message:", formattedError);
     if (signal?.aborted) {
-        onError(`Request aborted. Original error: ${errorMessage}`, true);
+        onError(`Request aborted. Original error: ${formattedError}`, true);
     } else {
-        onError(errorMessage, false);
+        onError(formattedError, false);
     }
     onComplete();
   }
@@ -622,7 +752,7 @@ export async function getFullChatResponse(
 
 export async function generateMimicUserResponse(
     modelId: string,
-    mappedAndPotentiallyFlippedHistory: GeminiHistoryEntry[], 
+    standardChatHistory: GeminiHistoryEntry[], 
     userPersonaInstructionText: string, 
     baseSettings: GeminiSettings,
     logApiRequestCallback: LogApiRequestCallback, 
@@ -658,21 +788,26 @@ export async function generateMimicUserResponse(
     if (safetySettingsForSDK) {
         generationConfigForCall.safetySettings = safetySettingsForSDK;
     }
+
+    if (MODELS_SENDING_THINKING_CONFIG_API.includes(modelId) && combinedSettings.thinkingBudget !== undefined) {
+        generationConfigForCall.thinkingConfig = { thinkingBudget: combinedSettings.thinkingBudget };
+    }
+
+    const requestContents: Content[] = standardChatHistory.map(entry => ({
+        role: entry.role,
+        parts: entry.parts
+    }));
+    const requestPayloadForGenerateContent: ApiRequestPayload = {
+        model: modelId,
+        contents: requestContents,
+        config: generationConfigForCall as Partial<LoggedGeminiGenerationConfig>
+    };
     
     try {
-        const requestContents: Content[] = mappedAndPotentiallyFlippedHistory.map(entry => ({
-            role: entry.role,
-            parts: entry.parts // This is already Part[] due to GeminiHistoryEntry.parts being Part[]
-        }));
-        
         if (combinedSettings.debugApiRequests) {
            logApiRequestCallback({
                 requestType: 'models.generateContent',
-                payload: {
-                    model: modelId,
-                    contents: JSON.parse(JSON.stringify(requestContents)),
-                    config: generationConfigForCall as Partial<LoggedGeminiGenerationConfig> 
-                },
+                payload: requestPayloadForGenerateContent,
                 characterName: (combinedSettings as any)._characterNameForLog || "[User Mimic Instruction Active]"
            });
         }
@@ -692,8 +827,8 @@ export async function generateMimicUserResponse(
             throw error; 
         }
         console.error("Error in generateMimicUserResponse:", error);
-        const message = error.message || String(error);
-        const detailedError = error.details || (error.cause ? `Cause: ${error.cause}` : '');
-        throw new Error(`Failed to generate user mimic response: ${message} ${detailedError}`.trim());
+        const formattedError = formatGeminiError(error, requestPayloadForGenerateContent);
+        throw new Error(formattedError);
     }
 }
+

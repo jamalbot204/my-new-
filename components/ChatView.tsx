@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
@@ -187,6 +188,8 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            // The handleSendMessageClick function is already guarded by chat.isLoading,
+            // so pressing Enter while loading will not send a new message until the current one finishes.
             if (!isCharacterMode && !chat.autoSendHook.isAutoSendingActive) {
                 handleSendMessageClick();
             }
@@ -407,7 +410,11 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                         <p className="text-xs text-gray-400 mb-2">{isReorderingActive ? "Drag to reorder characters, then click 'Done'." : (isInfoInputModeActive ? "Input is for one-time info. Select character to speak:" : (chat.autoSendHook.isPreparingAutoSend ? "Auto-send ready. Select character to start:" : "Select a character to speak (can be empty input):"))}</p>
                         <div className="flex flex-wrap gap-2">
                             {characters.map((char) => (
-                                <button key={char.id} data-char-id={char.id} onClick={() => !isReorderingActive && handleSendMessageClick(char.id)} disabled={!chat.currentChatSession || chat.isLoading || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive || (isReorderingActive && !!draggedCharRef.current && draggedCharRef.current.id === char.id)} draggable={isReorderingActive} onDragStart={(e) => handleDragStart(e, char)} onDragEnd={handleDragEnd} className={`px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 transition-all duration-150 ease-in-out ${isReorderingActive ? 'cursor-grab hover:ring-2 hover:ring-purple-400' : 'disabled:cursor-not-allowed'} ${draggedCharRef.current?.id === char.id ? 'opacity-50 ring-2 ring-blue-500' : ''} ${(chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading) ? 'ring-2 ring-green-500 hover:ring-green-400' : ''}`} title={isReorderingActive ? `Drag to reorder ${char.name}` : (chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading ? `Start auto-sending as ${char.name}` : `Speak as ${char.name}`)}>
+                                <button key={char.id} data-char-id={char.id} onClick={() => !isReorderingActive && handleSendMessageClick(char.id)} 
+                                disabled={!chat.currentChatSession || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive || (isReorderingActive && !!draggedCharRef.current && draggedCharRef.current.id === char.id)} 
+                                draggable={isReorderingActive} onDragStart={(e) => handleDragStart(e, char)} onDragEnd={handleDragEnd} 
+                                className={`px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 transition-all duration-150 ease-in-out ${isReorderingActive ? 'cursor-grab hover:ring-2 hover:ring-purple-400' : 'disabled:cursor-not-allowed'} ${draggedCharRef.current?.id === char.id ? 'opacity-50 ring-2 ring-blue-500' : ''} ${(chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading) ? 'ring-2 ring-green-500 hover:ring-green-400' : ''}`} 
+                                title={isReorderingActive ? `Drag to reorder ${char.name}` : (chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading ? `Start auto-sending as ${char.name}` : `Speak as ${char.name}`)}>
                                     {char.name}
                                 </button>
                             ))}
@@ -441,7 +448,12 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                     {chat.isLoading && <p className="text-xs text-center text-blue-400 mb-2 animate-pulse">{loadingMessageText}</p>}
                     <div className="flex items-end bg-gray-700 rounded-lg p-1 focus-within:ring-2 focus-within:ring-blue-500">
                         <input type="file" multiple ref={fileInputRef} onChange={(e) => handleFileSelection(e.target.files)} className="hidden" accept="image/*,video/*,.pdf,text/*,application/json" />
-                        <button onClick={() => fileInputRef.current?.click()} disabled={chat.isLoading || !chat.currentChatSession || isInfoInputModeActive || chat.autoSendHook.isAutoSendingActive} className="p-2.5 sm:p-3 m-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-blue-500" title="Attach files" aria-label="Attach files">
+                        <button 
+                            onClick={() => fileInputRef.current?.click()} 
+                            disabled={!chat.currentChatSession || isInfoInputModeActive || chat.autoSendHook.isAutoSendingActive} 
+                            className="p-2.5 sm:p-3 m-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-blue-500" 
+                            title="Attach files" 
+                            aria-label="Attach files">
                             <PaperClipIcon className="w-5 h-5" />
                         </button>
                         {isCharacterMode && (
@@ -449,7 +461,17 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                                 <InfoIcon className="w-5 h-5" />
                             </button>
                         )}
-                        <textarea ref={textareaRef} rows={1} className="flex-grow p-2.5 sm:p-3 bg-transparent text-gray-200 focus:outline-none resize-none placeholder-gray-400 hide-scrollbar" placeholder={placeholderText} value={inputMessage} onChange={handleInputChange} onKeyPress={handleKeyPress} onPaste={handlePaste} disabled={!chat.currentChatSession || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive} aria-label="Chat input" />
+                        <textarea 
+                            ref={textareaRef} 
+                            rows={1} 
+                            className="flex-grow p-2.5 sm:p-3 bg-transparent text-gray-200 focus:outline-none resize-none placeholder-gray-400 hide-scrollbar" 
+                            placeholder={placeholderText} 
+                            value={inputMessage} 
+                            onChange={handleInputChange} 
+                            onKeyPress={handleKeyPress} 
+                            onPaste={handlePaste} 
+                            disabled={!chat.currentChatSession || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive} 
+                            aria-label="Chat input" />
                         {!isCharacterMode && (
                             <button onClick={handleContinueFlowClick} disabled={chat.isLoading || !chat.currentChatSession || (chat.currentChatSession && chat.currentChatSession.messages.length === 0) || isAnyFileStillProcessing() || isCharacterMode || chat.autoSendHook.isAutoSendingActive} className="p-2.5 sm:p-3 m-1 text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-teal-500" title="Continue Flow" aria-label="Continue flow">
                                 <FlowRightIcon className="w-5 h-5" />

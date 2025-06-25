@@ -258,15 +258,14 @@ export function useAudioPlayer(
         return;
       }
     }
-
-    if (audioPlayerState.isPlaying) { 
-        stopCurrentPlayback(true); 
-    }
-
+    
     if (cachedBufferForSegment) {
+      // If cached, play immediately (or if it was already playing this segment and was paused, resumePlayback would have been called)
+      // This path is taken when the user clicks play on an already cached item.
+      stopCurrentPlayback(true); // Stop anything else, ensure clean state for this new play
       setAudioPlayerState(prev => ({ 
         ...prev,
-        isLoading: true,
+        isLoading: true, // Player is loading the buffer
         isPlaying: false, 
         currentMessageId: uniqueSegmentId,
         currentPlayingText: textSegment,
@@ -277,8 +276,9 @@ export function useAudioPlayer(
       await startPlaybackInternal(cachedBufferForSegment, 0, textSegment, uniqueSegmentId);
       return;
     }
-
-    stopCurrentPlayback(true); 
+    
+    // If not cached, fetch but DO NOT play automatically.
+    stopCurrentPlayback(true); // Stop anything else
 
     const existingController = activeFetchControllersRef.current.get(uniqueSegmentId);
     if (existingController) { 
@@ -292,7 +292,7 @@ export function useAudioPlayer(
 
     setAudioPlayerState(prev => ({ 
         ...prev,
-        isLoading: true, 
+        isLoading: true, // API is loading
         isPlaying: false,
         currentMessageId: uniqueSegmentId,
         error: null,
@@ -309,30 +309,34 @@ export function useAudioPlayer(
       }
       onCacheAudio?.(uniqueSegmentId, pcmDataBuffer);
 
-      // We have successfully fetched and cached the audio. Now, we stop the loading indicator
-      // but we will NOT automatically play it. The user will need to click play again.
+      // Audio fetched and cached. Update state to reflect readiness but DO NOT PLAY.
       setAudioPlayerState(prev => {
-        if (prev.currentMessageId === uniqueSegmentId) {
-             return { ...prev, isLoading: false };
+        if (prev.currentMessageId === uniqueSegmentId) { // If this is still the targeted segment
+             return {
+                 ...prev,
+                 isLoading: false, // API loading finished
+                 isPlaying: false, // Not playing
+                 error: null,
+                 // Duration will be determined when startPlaybackInternal is called after user clicks play
+             };
         }
-        return prev;
+        return prev; // Player target changed during fetch
       });
+
     } catch (caughtError: any) {
       fetchError = caughtError as Error;
       if (fetchError.name === 'AbortError') {
         console.log(`Fetch for ${uniqueSegmentId} was aborted.`);
-        // If not already set by a direct cancel, mark as aborted.
-        // The direct cancel in cancelCurrentSegmentAudioLoad is more specific ("Cancelled by user")
         if (!segmentFetchErrors.has(uniqueSegmentId)) {
              setSegmentFetchErrors(prev => {
                 const next = new Map(prev);
-                next.delete(uniqueSegmentId); // Ensure no "Audio fetch aborted." if "Cancelled by user." was set.
+                next.delete(uniqueSegmentId); 
                 return next;
             });
         }
         setAudioPlayerState(prev => {
             if (prev.currentMessageId === uniqueSegmentId) {
-                 return { ...prev, isLoading: false, isPlaying: false, error: segmentFetchErrors.get(uniqueSegmentId) || null }; // Use existing error or clear
+                 return { ...prev, isLoading: false, isPlaying: false, error: segmentFetchErrors.get(uniqueSegmentId) || null };
             }
             return prev;
         });
@@ -366,7 +370,7 @@ export function useAudioPlayer(
       stopCurrentPlayback,
       audioPlayerState.isPlaying, 
       audioPlayerState.currentMessageId,
-      audioPlayerState.isLoading, 
+      // audioPlayerState.isLoading, // Removed isLoading from here as it creates loops with setAudioPlayerState
       onCacheAudio,
       onFetchStart,
       onFetchEnd,
@@ -383,7 +387,6 @@ export function useAudioPlayer(
       activeFetchControllersRef.current.delete(segmentIdToCancel); // Remove controller
     }
     
-    // Immediately clear fetching state and error state for this segment
     setFetchingSegmentIds(prev => {
       const next = new Set(prev);
       next.delete(segmentIdToCancel);
@@ -391,19 +394,18 @@ export function useAudioPlayer(
     });
     setSegmentFetchErrors(prev => {
       const next = new Map(prev);
-      next.delete(segmentIdToCancel); // Ensure any error (like "Cancelled by user") is cleared
+      next.delete(segmentIdToCancel); 
       return next;
     });
 
     onFetchEnd?.(segmentIdToCancel, new DOMException('Cancelled by user', 'AbortError'));
 
-    // If this segment was the one actively being loaded/played by the player UI
     if (audioPlayerState.currentMessageId === segmentIdToCancel) {
       setAudioPlayerState(prev => ({
         ...prev,
         isLoading: false, 
         isPlaying: false, 
-        error: null, // Clear player-level error too
+        error: null, 
       }));
     }
   }, [
