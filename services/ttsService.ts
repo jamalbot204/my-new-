@@ -3,28 +3,21 @@
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import { TTSSettings, LogApiRequestCallback, ApiRequestPayload } from '../types';
 
-const API_KEY_ENV = process.env.API_KEY;
+const aiInstancesCache = new Map<string, GoogleGenAI>();
 
-const getApiKey = (): string | null => {
-  if (!API_KEY_ENV) {
-    console.error("API_KEY for Gemini TTS is not set or accessible in environment variables.");
-    return null;
-  }
-  return API_KEY_ENV;
-};
-
-let ttsAiInstance: GoogleGenAI | null = null;
-const getTtsAiInstance = (): GoogleGenAI | null => {
-    const apiKey = getApiKey();
-    if (!apiKey) return null; // Ensure null is returned if apiKey is not available
-    if (!ttsAiInstance) {
-        ttsAiInstance = new GoogleGenAI({ apiKey });
+function createAiInstance(apiKey: string): GoogleGenAI {
+    if (aiInstancesCache.has(apiKey)) {
+        return aiInstancesCache.get(apiKey)!;
     }
-    return ttsAiInstance;
-};
+    const newInstance = new GoogleGenAI({ apiKey });
+    aiInstancesCache.set(apiKey, newInstance);
+    return newInstance;
+}
+
 
 /**
  * Generates speech from text using the Gemini API.
+ * @param apiKey The API key to use for this request.
  * @param text The text to synthesize.
  * @param ttsSettings The TTS configuration (model, voice, systemInstruction).
  * @param logApiRequest Optional callback to log the API request.
@@ -32,15 +25,16 @@ const getTtsAiInstance = (): GoogleGenAI | null => {
  * @returns A Promise that resolves to an ArrayBuffer containing the audio data.
  */
 export async function generateSpeech(
+  apiKey: string,
   text: string,
   ttsSettings: TTSSettings,
   logApiRequest?: LogApiRequestCallback,
   signal?: AbortSignal
 ): Promise<ArrayBuffer> {
-  const ai = getTtsAiInstance();
-  if (!ai) {
+  if (!apiKey) {
     throw new Error("TTS API Key not configured.");
   }
+  const ai = createAiInstance(apiKey);
 
   let textToSynthesize = text;
   if (ttsSettings.systemInstruction && ttsSettings.systemInstruction.trim() !== '') {

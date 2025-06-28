@@ -738,7 +738,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     </h4>
                     <ul className="list-none pl-0 space-y-1">
                         {groundingChunks.map((chunk: GroundingChunk, index: number) => (
-                        <li key={index} className="text-xs">
+                        <li key={chunk.web.uri + index} className="text-xs">
                             <a
                             href={chunk.web.uri}
                             target="_blank"
@@ -785,7 +785,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                      {displayContent.trim() && !isError && (
                         <>
                             {!showIndividualPartControls && renderPlayButtonForSegment()}
-                            {showIndividualPartControls && textSegmentsForTts.map((_, index) => renderPlayButtonForSegment(index))}
+                            {showIndividualPartControls && textSegmentsForTts.map((_, index) => (
+                              <React.Fragment key={`tts-btn-${index}`}>
+                                {renderPlayButtonForSegment(index)}
+                              </React.Fragment>
+                            ))}
                             
                             {hasAnyCachedAudio && !isAnyAudioOperationActiveForMessage && (
                                 <ResetAudioCacheButton

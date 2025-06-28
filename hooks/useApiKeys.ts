@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { ApiKey } from '../types';
 import * as dbService from '../services/dbService';
@@ -58,17 +57,36 @@ export function useApiKeys() {
     persistKeys(newKeys);
   }, [apiKeys, persistKeys]);
 
-  const reorderApiKeys = useCallback((newOrder: ApiKey[]) => {
-    setApiKeys(newOrder);
-    persistKeys(newOrder);
-  }, [persistKeys]);
-  
-  const rotateKeys = useCallback(() => {
-    if (apiKeys.length > 1) {
-      const rotatedKeys = [...apiKeys.slice(1), apiKeys[0]];
-      setApiKeys(rotatedKeys);
-      persistKeys(rotatedKeys);
+  const moveKey = useCallback((id: string, direction: 'up' | 'down') => {
+    const index = apiKeys.findIndex(key => key.id === id);
+    if (index === -1) return;
+
+    const newKeys = [...apiKeys];
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (newIndex < 0 || newIndex >= newKeys.length) return;
+
+    [newKeys[index], newKeys[newIndex]] = [newKeys[newIndex], newKeys[index]];
+    
+    setApiKeys(newKeys);
+    persistKeys(newKeys);
+  }, [apiKeys, persistKeys]);
+
+  const moveKeyToEdge = useCallback((id: string, edge: 'top' | 'bottom') => {
+    const index = apiKeys.findIndex(key => key.id === id);
+    if (index === -1 || (edge === 'top' && index === 0) || (edge === 'bottom' && index === apiKeys.length - 1)) return;
+
+    const newKeys = [...apiKeys];
+    const [item] = newKeys.splice(index, 1);
+
+    if (edge === 'top') {
+      newKeys.unshift(item);
+    } else {
+      newKeys.push(item);
     }
+    
+    setApiKeys(newKeys);
+    persistKeys(newKeys);
   }, [apiKeys, persistKeys]);
 
   const toggleKeyVisibility = useCallback(() => {
@@ -85,8 +103,8 @@ export function useApiKeys() {
     addApiKey,
     updateApiKey,
     deleteApiKey,
-    reorderApiKeys,
     toggleKeyVisibility,
-    rotateKeys,
+    moveKey,
+    moveKeyToEdge,
   };
 }

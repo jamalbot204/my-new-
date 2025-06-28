@@ -1,4 +1,5 @@
 
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { TTSSettings, AudioPlayerState, LogApiRequestCallback, UseAudioPlayerOptions, UseAudioPlayerReturn, UseAudioPlayerCacheCallback } from '../types';
 import { generateSpeech, playPcmAudio } from '../services/ttsService';
@@ -7,9 +8,9 @@ import { PLAYBACK_SPEEDS } from '../constants';
 
 
 export function useAudioPlayer(
-  options: UseAudioPlayerOptions = {}
+  options: UseAudioPlayerOptions
 ): UseAudioPlayerReturn {
-  const { logApiRequest, onCacheAudio, onAutoplayNextSegment, onFetchStart, onFetchEnd } = options;
+  const { apiKey, logApiRequest, onCacheAudio, onAutoplayNextSegment, onFetchStart, onFetchEnd } = options;
   const [audioPlayerState, setAudioPlayerState] = useState<AudioPlayerState>({
     isLoading: false,
     isPlaying: false,
@@ -303,7 +304,7 @@ export function useAudioPlayer(
 
     let fetchError: Error | undefined;
     try {
-      const pcmDataBuffer = await generateSpeech(textSegment, ttsSettings, logApiRequest, controller.signal);
+      const pcmDataBuffer = await generateSpeech(apiKey, textSegment, ttsSettings, logApiRequest, controller.signal);
       if (controller.signal.aborted) {
         throw new DOMException('Aborted', 'AbortError');
       }
@@ -365,6 +366,7 @@ export function useAudioPlayer(
         onFetchEnd?.(uniqueSegmentId, fetchError);
     }
   }, [
+      apiKey,
       logApiRequest,
       startPlaybackInternal,
       stopCurrentPlayback,

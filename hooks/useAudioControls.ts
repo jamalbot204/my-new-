@@ -9,6 +9,7 @@ import * as audioUtils from '../services/audioUtils'; // Adjusted paths
 import { splitTextForTts, sanitizeFilename, triggerDownload } from '../services/utils'; // Updated imports
 
 interface UseAudioControlsProps {
+  apiKey: string;
   currentChatSession: ChatSession | null;
   updateChatSession: (sessionId: string, updater: (session: ChatSession) => ChatSession | null) => Promise<void>;
   logApiRequest: LogApiRequestCallback;
@@ -20,6 +21,7 @@ interface UseAudioControlsProps {
 }
 
 export function useAudioControls({
+  apiKey,
   currentChatSession,
   updateChatSession,
   logApiRequest,
@@ -158,7 +160,7 @@ export function useAudioControls({
                         throw new DOMException('Aborted by user', 'AbortError');
                     }
                     if (!newBuffers[index]) { 
-                        const audioBuffer = await generateSpeech(segmentText, ttsSettings, logApiRequest, controller.signal);
+                        const audioBuffer = await generateSpeech(apiKey, segmentText, ttsSettings, logApiRequest, controller.signal);
                         if (controller.signal.aborted) {
                             throw new DOMException('Aborted by user', 'AbortError');
                         }
@@ -228,7 +230,7 @@ export function useAudioControls({
             audioPlayerHook.playText(firstSegmentText, firstSegmentId, ttsSettings, message.cachedAudioBuffers?.[0]);
         }
     }
-  }, [currentChatSession, showToast, logApiRequest, audioPlayerHook, updateChatSession, isAutoFetchingSegment, onCancelAutoFetchSegment, handleCancelMultiPartFetch]);
+  }, [apiKey, currentChatSession, showToast, logApiRequest, audioPlayerHook, updateChatSession, isAutoFetchingSegment, onCancelAutoFetchSegment, handleCancelMultiPartFetch]);
 
 
   const handleStopAndCancelAllForCurrentAudio = useCallback(() => {

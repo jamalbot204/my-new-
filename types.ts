@@ -304,6 +304,7 @@ export interface MessageItemProps {
 
 
 export interface UseAudioPlayerOptions {
+  apiKey: string;
   logApiRequest?: LogApiRequestCallback;
   onCacheAudio?: UseAudioPlayerCacheCallback;
   onAutoplayNextSegment?: (baseMessageId: string, justFinishedPartIndex: number) => void;

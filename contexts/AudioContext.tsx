@@ -1,6 +1,7 @@
 
 
 
+
 import React, { createContext, useContext, useRef, ReactNode, useEffect, useCallback } from 'react';
 import { AudioPlayerState, ChatMessage } from '../types'; // Added ChatMessage
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -10,6 +11,7 @@ import { useUIContext } from './UIContext';
 import { useAutoPlay } from '../hooks/useAutoPlay'; // Import the new hook
 import { splitTextForTts } from '../services/utils';
 import { MAX_WORDS_PER_TTS_SEGMENT } from '../constants';
+import { useApiKeyContext } from './ApiKeyContext';
 
 // Define the shape of the Audio context data
 interface AudioContextType {
@@ -38,10 +40,13 @@ const AudioContext = createContext<AudioContextType | null>(null);
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const chat = useChatContext();
   const ui = useUIContext();
+  const { activeApiKey } = useApiKeyContext();
+  const apiKey = activeApiKey?.value || '';
 
   const audioControlsHookRef = useRef<any>(null);
 
   const audioPlayer = useAudioPlayer({
+    apiKey: apiKey,
     logApiRequest: (details) => chat.isLoading, 
     onCacheAudio: (id, buffer) => audioControlsHookRef.current?.handleCacheAudioForMessageCallback(id, buffer),
     onAutoplayNextSegment: async (baseMessageId, playedPartIndex) => {
@@ -62,6 +67,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
 
   const audioControls = useAudioControls({
+    apiKey: apiKey,
     currentChatSession: chat.currentChatSession,
     updateChatSession: chat.updateChatSession,
     logApiRequest: (details) => chat.isLoading, 

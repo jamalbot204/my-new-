@@ -1,38 +1,40 @@
-
 import React, { useState, useRef } from 'react';
 import { useApiKeyContext } from '../contexts/ApiKeyContext';
 import { useUIContext } from '../contexts/UIContext';
 import { ApiKey } from '../types';
-import { PlusIcon, TrashIcon, CheckIcon, ArrowsUpDownIcon } from './Icons';
+import { PlusIcon, TrashIcon, CheckIcon, ChevronUpIcon, ChevronDownIcon, ChevronDoubleUpIcon, ChevronDoubleDownIcon } from './Icons';
 
 // Sub-component for a single API key item
 const ApiKeyItem: React.FC<{
   apiKey: ApiKey;
   isFirst: boolean;
+  isLast: boolean;
   isKeyVisible: boolean;
   onUpdate: (id: string, name: string, value: string) => void;
   onDelete: (id: string) => void;
-  onDragStart: (e: React.DragEvent<HTMLDivElement>, id: string) => void;
-  onDragEnd: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-}> = ({ apiKey, isFirst, isKeyVisible, onUpdate, onDelete, onDragStart, onDragEnd, onDragOver }) => {
+  onMoveUp: (id: string) => void;
+  onMoveDown: (id: string) => void;
+  onMoveToTop: (id: string) => void;
+  onMoveToBottom: (id: string) => void;
+}> = ({ apiKey, isFirst, isLast, isKeyVisible, onUpdate, onDelete, onMoveUp, onMoveDown, onMoveToTop, onMoveToBottom }) => {
   const { requestDeleteConfirmation } = useUIContext();
 
   const handleDeleteClick = () => {
     requestDeleteConfirmation(apiKey.id, 'api-key'); // Using messageId field for API key ID
   };
+  
+  const ReorderButton: React.FC<{ onClick: () => void, disabled: boolean, title: string, children: React.ReactNode }> = ({ onClick, disabled, title, children }) => (
+    <button onClick={onClick} disabled={disabled} title={title} className="p-0.5 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">
+        {children}
+    </button>
+  );
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, apiKey.id)}
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
       data-id={apiKey.id}
-      className="flex items-center space-x-2 p-2 bg-black/20 rounded-md cursor-grab active:cursor-grabbing transition-shadow"
+      className="flex items-center space-x-2 p-2 bg-black/20 rounded-md"
     >
-      <div className="flex-shrink-0 flex items-center space-x-2">
-        <ArrowsUpDownIcon className="w-5 h-5 text-gray-500" />
+      <div className="flex-shrink-0 w-5">
         {isFirst && <CheckIcon className="w-5 h-5 text-green-400" title="Active Key" />}
       </div>
       <input
@@ -51,6 +53,20 @@ const ApiKeyItem: React.FC<{
         className="aurora-input text-sm p-1.5 flex-grow font-mono"
         aria-label="API Key Value"
       />
+      <div className="flex items-center space-x-0.5">
+        <ReorderButton onClick={() => onMoveToTop(apiKey.id)} disabled={isFirst} title="Move to Top">
+            <ChevronDoubleUpIcon className="w-4 h-4" />
+        </ReorderButton>
+        <ReorderButton onClick={() => onMoveUp(apiKey.id)} disabled={isFirst} title="Move Up">
+            <ChevronUpIcon className="w-4 h-4" />
+        </ReorderButton>
+        <ReorderButton onClick={() => onMoveDown(apiKey.id)} disabled={isLast} title="Move Down">
+            <ChevronDownIcon className="w-4 h-4" />
+        </ReorderButton>
+        <ReorderButton onClick={() => onMoveToBottom(apiKey.id)} disabled={isLast} title="Move to Bottom">
+            <ChevronDoubleDownIcon className="w-4 h-4" />
+        </ReorderButton>
+      </div>
       <button onClick={handleDeleteClick} title="Delete Key" className="p-1.5 text-red-500 hover:text-red-400">
         <TrashIcon className="w-5 h-5" />
       </button>
@@ -60,49 +76,18 @@ const ApiKeyItem: React.FC<{
 
 
 const ApiKeyManager: React.FC = () => {
-  const { apiKeys, isKeyVisible, addApiKey, updateApiKey, deleteApiKey, reorderApiKeys, toggleKeyVisibility } = useApiKeyContext();
+  const { apiKeys, isKeyVisible, addApiKey, updateApiKey, deleteApiKey, toggleKeyVisibility, moveKey, moveKeyToEdge } = useApiKeyContext();
   const { setIsDeleteConfirmationOpen, deleteTarget } = useUIContext();
-  const dragItemId = useRef<string | null>(null);
 
   React.useEffect(() => {
     if (!deleteTarget || deleteTarget.messageId !== 'api-key') return;
 
-    deleteApiKey(deleteTarget.sessionId);
+    // A bit of a hack: The confirmation modal uses sessionId for the ID to delete.
+    deleteApiKey(deleteTarget.sessionId); 
+    // Reset the confirmation modal state in UIContext
     setIsDeleteConfirmationOpen(false);
 
   }, [deleteTarget, deleteApiKey, setIsDeleteConfirmationOpen]);
-
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
-    dragItemId.current = id;
-    e.currentTarget.classList.add('opacity-50');
-  };
-  
-  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    dragItemId.current = null;
-    e.currentTarget.classList.remove('opacity-50');
-  };
-  
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Necessary to allow drop
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const targetElement = e.currentTarget.closest('[data-id]') as HTMLDivElement | null;
-    if (!targetElement || !dragItemId.current) return;
-    
-    const dropTargetId = targetElement.dataset.id;
-    if (!dropTargetId || dropTargetId === dragItemId.current) return;
-
-    const dragIndex = apiKeys.findIndex(key => key.id === dragItemId.current);
-    const dropIndex = apiKeys.findIndex(key => key.id === dropTargetId);
-
-    const newKeys = [...apiKeys];
-    const [draggedItem] = newKeys.splice(dragIndex, 1);
-    newKeys.splice(dropIndex, 0, draggedItem);
-    
-    reorderApiKeys(newKeys);
-  };
   
   const EyeIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" /></svg>
@@ -115,18 +100,20 @@ const ApiKeyManager: React.FC = () => {
   return (
     <div className="border-t border-[var(--aurora-border)] pt-4">
       <h3 className="text-md font-medium text-gray-300 mb-2">API Key Management</h3>
-      <div className="space-y-2" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
-        {apiKeys.map((key) => (
+      <div className="space-y-2">
+        {apiKeys.map((key, index) => (
           <ApiKeyItem
             key={key.id}
             apiKey={key}
-            isFirst={key.id === apiKeys[0]?.id}
+            isFirst={index === 0}
+            isLast={index === apiKeys.length - 1}
             isKeyVisible={isKeyVisible}
             onUpdate={updateApiKey}
             onDelete={deleteApiKey}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragOver={handleDragOver}
+            onMoveUp={() => moveKey(key.id, 'up')}
+            onMoveDown={() => moveKey(key.id, 'down')}
+            onMoveToTop={() => moveKeyToEdge(key.id, 'top')}
+            onMoveToBottom={() => moveKeyToEdge(key.id, 'bottom')}
           />
         ))}
         {apiKeys.length === 0 && <p className="text-sm text-gray-400 italic">No API keys added.</p>}

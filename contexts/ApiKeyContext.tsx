@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, ReactNode } from 'react';
 import { ApiKey } from '../types';
 import { useApiKeys } from '../hooks/useApiKeys';
@@ -11,9 +10,9 @@ interface ApiKeyContextType {
   addApiKey: () => void;
   updateApiKey: (id: string, name: string, value: string) => void;
   deleteApiKey: (id: string) => void;
-  reorderApiKeys: (newOrder: ApiKey[]) => void;
   toggleKeyVisibility: () => void;
-  rotateKeys: () => void;
+  moveKey: (id: string, direction: 'up' | 'down') => void;
+  moveKeyToEdge: (id: string, edge: 'top' | 'bottom') => void;
 }
 
 const ApiKeyContext = createContext<ApiKeyContextType | null>(null);
