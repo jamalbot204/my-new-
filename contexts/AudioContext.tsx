@@ -1,6 +1,7 @@
 
 
-import React, { createContext, useContext, useRef, ReactNode, useEffect } from 'react';
+
+import React, { createContext, useContext, useRef, ReactNode, useEffect, useCallback } from 'react';
 import { AudioPlayerState, ChatMessage } from '../types'; // Added ChatMessage
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useAudioControls } from '../hooks/useAudioControls';
@@ -18,6 +19,7 @@ interface AudioContextType {
   handleClosePlayerViewOnly: () => void;
   handleDownloadAudio: (sessionId: string, messageId: string, userProvidedName?: string) => void;
   handleResetAudioCache: (sessionId: string, messageId: string) => void;
+  handleResetAudioCacheForMultipleMessages: (messageIds: string[]) => Promise<void>;
   isMainButtonMultiFetchingApi: (baseId: string) => boolean;
   getSegmentFetchError: (uniqueSegmentId: string) => string | undefined;
   isApiFetchingThisSegment: (uniqueSegmentId: string) => boolean;
@@ -85,6 +87,28 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [chat, autoPlay.triggerAutoPlayForNewMessage]);
 
+  const handleResetAudioCacheForMultipleMessages = useCallback(async (messageIds: string[]) => {
+    if (!chat.currentChatSession || messageIds.length === 0) return;
+    
+    // Stop audio if any of the selected messages are playing
+    const anyPlaying = messageIds.some(id => audioPlayer.audioPlayerState.currentMessageId?.startsWith(id));
+    if (anyPlaying) {
+      audioPlayer.stopPlayback();
+    }
+
+    await chat.updateChatSession(chat.currentChatSession.id, session => {
+        if (!session) return null;
+        const idSet = new Set(messageIds);
+        const newMessages = session.messages.map(m => 
+            idSet.has(m.id) ? { ...m, cachedAudioBuffers: null } : m
+        );
+        return { ...session, messages: newMessages };
+    });
+
+    ui.showToast(`Audio cache reset for ${messageIds.length} message(s).`, "success");
+    ui.toggleSelectionMode(); // This also clears selection
+  }, [chat.currentChatSession, chat.updateChatSession, audioPlayer, ui.showToast, ui.toggleSelectionMode]);
+
 
   const value = {
     audioPlayerState: audioPlayer.audioPlayerState,
@@ -93,6 +117,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     handleClosePlayerViewOnly: audioControls.handleClosePlayerViewOnly,
     handleDownloadAudio: audioControls.handleDownloadAudio,
     handleResetAudioCache: audioControls.handleResetAudioCache,
+    handleResetAudioCacheForMultipleMessages,
     isMainButtonMultiFetchingApi: audioControls.isMainButtonMultiFetchingApi,
     getSegmentFetchError: audioPlayer.getSegmentFetchError,
     isApiFetchingThisSegment: audioPlayer.isApiFetchingThisSegment,

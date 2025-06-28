@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { ChatSession, ChatMessage, GeminiSettings, Attachment, AICharacter, ApiRequestLog, ExportConfiguration, UserDefinedDefaults, ChatMessageRole } from '../types';
+import { ChatSession, ChatMessage, GeminiSettings, Attachment, AICharacter, ApiRequestLog, ExportConfiguration, UserDefinedDefaults, ChatMessageRole, LogApiRequestCallback } from '../types';
 import { useChatSessions } from '../hooks/useChatSessions';
 import { useAiCharacters } from '../hooks/useAiCharacters';
 import { useGemini } from '../hooks/useGemini';
@@ -14,6 +13,7 @@ import { useUIContext } from './UIContext';
 import { EditMessagePanelAction, EditMessagePanelDetails } from '../components/EditMessagePanel';
 import { DEFAULT_SETTINGS, INITIAL_MESSAGES_COUNT } from '../constants';
 import { useMessageInjection } from '../hooks/useMessageInjection';
+import { useApiKeyContext } from './ApiKeyContext';
 
 
 // Define the shape of the Chat context data
@@ -90,12 +90,17 @@ interface ChatContextType {
 
   // From useMessageInjection
   handleInsertEmptyMessageAfter: (sessionId: string, afterMessageId: string, roleToInsert: ChatMessageRole.USER | ChatMessageRole.MODEL) => Promise<void>;
+
+  // New for multi-select actions
+  handleDeleteMultipleMessages: (messageIds: string[]) => Promise<void>;
+  logApiRequest: LogApiRequestCallback;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const ui = useUIContext();
+  const { activeApiKey } = useApiKeyContext();
 
   const {
     chatHistory, setChatHistory, currentChatId, setCurrentChatId, currentChatSession: rawCurrentChatSession, // Renamed to rawCurrentChatSession
@@ -119,6 +124,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
   const gemini = useGemini({
+    apiKey: activeApiKey?.value || '',
     currentChatSession: rawCurrentChatSession,
     updateChatSession,
     logApiRequestDirectly: (logDetails) => {
@@ -142,6 +148,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const chatInteractions = useChatInteractions({
+    apiKey: activeApiKey?.value || '',
     currentChatSession: rawCurrentChatSession, updateChatSession, showToast: ui.showToast,
     openEditPanel: ui.openEditPanel, closeEditPanel: ui.closeEditPanel,
     geminiHandleEditPanelSubmit: gemini.handleEditPanelSubmit, // Pass the original gemini hook's submit
@@ -233,6 +240,27 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     ui.showToast("Audio cache reset for message.", "success");
   }, [updateChatSession, ui.showToast]);
 
+  const handleDeleteMultipleMessages = useCallback(async (messageIds: string[]) => {
+    if (!rawCurrentChatSession || messageIds.length === 0) return;
+
+    await updateChatSession(rawCurrentChatSession.id, session => {
+      if (!session) return null;
+      const idSet = new Set(messageIds);
+      const newMessages = session.messages.filter(m => !idSet.has(m.id));
+      
+      persistence.setMessageGenerationTimes(prevTimes => {
+        const newTimesState = { ...prevTimes };
+        messageIds.forEach(id => delete newTimesState[id]);
+        return newTimesState;
+      }).catch(console.error);
+
+      return { ...session, messages: newMessages };
+    });
+    
+    ui.showToast(`${messageIds.length} message(s) deleted.`, "success");
+    ui.toggleSelectionMode(); // This also clears selection
+  }, [rawCurrentChatSession, updateChatSession, persistence.setMessageGenerationTimes, ui.showToast, ui.toggleSelectionMode]);
+
   const visibleMessagesForCurrentChat = useMemo(() => {
     if (!rawCurrentChatSession || !rawCurrentChatSession.id) {
         return [];
@@ -296,6 +324,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     triggerAutoPlayForNewMessage: placeholderTriggerAutoPlay, // Initial placeholder
     performActualAudioCacheReset, // Add the new function
     handleInsertEmptyMessageAfter: messageInjection.handleInsertEmptyMessageAfter,
+    handleDeleteMultipleMessages,
+    logApiRequest: gemini.logApiRequest,
   };
 
   chatContextValueRef.current = value;

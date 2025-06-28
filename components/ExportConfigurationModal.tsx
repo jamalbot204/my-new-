@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChatSession, ExportConfiguration } from '../types';
 import { useChatContext } from '../contexts/ChatContext';
@@ -69,7 +71,7 @@ const ExportConfigurationModal: React.FC = () => {
   };
   
   const renderCategoryHeader = (title: string, icon?: React.ReactNode) => (
-    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider pt-3 pb-1 border-b border-gray-700 mb-1 flex items-center">
+    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider pt-3 pb-1 border-b border-[var(--aurora-border)] mb-1 flex items-center">
       {icon && <span className="mr-2">{icon}</span>}
       {title}
     </h4>
@@ -94,7 +96,7 @@ const ExportConfigurationModal: React.FC = () => {
             id={id}
             name={id}
             type="checkbox"
-            className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-500 rounded bg-gray-700 disabled:cursor-not-allowed"
+            className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-500 rounded bg-black/30 disabled:cursor-not-allowed"
             checked={checked}
             onChange={(e) => !disabled && onChange(id, e.target.checked)}
             disabled={disabled}
@@ -112,17 +114,17 @@ const ExportConfigurationModal: React.FC = () => {
 
   return (
     <div 
-        className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-2 sm:p-4 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-2 sm:p-4 backdrop-blur-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-config-modal-title"
     >
-      <div className="bg-gray-800 p-5 sm:p-6 rounded-lg shadow-xl w-full sm:max-w-3xl max-h-[95vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
+      <div className="aurora-panel p-5 sm:p-6 rounded-lg shadow-2xl w-full sm:max-w-3xl max-h-[95vh] flex flex-col text-gray-200">
         <div className="flex justify-between items-center mb-4 flex-shrink-0">
           <h2 id="export-config-modal-title" className="text-xl font-semibold text-gray-100">Export Chats & Preferences</h2>
           <button
             onClick={ui.closeExportConfigurationModal}
-            className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
+            className="text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
             aria-label="Close export configuration"
           >
             <CloseIcon className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -137,26 +139,26 @@ const ExportConfigurationModal: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Search chats by title..."
-                  className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md mb-2 text-sm"
+                  className="w-full p-2 aurora-input mb-2 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs text-gray-400">{selectedChatIds.length} of {filteredSessions.length} chat(s) selected.</span>
                   <div className="space-x-2">
-                    <button onClick={handleSelectAllChats} className="text-xs text-blue-400 hover:text-blue-300">Select All Visible</button>
-                    <button onClick={handleDeselectAllChats} className="text-xs text-blue-400 hover:text-blue-300">Deselect All</button>
+                    <button onClick={handleSelectAllChats} className="text-xs text-blue-400 transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)] disabled:opacity-50" disabled={filteredSessions.length === 0}>Select All Visible</button>
+                    <button onClick={handleDeselectAllChats} className="text-xs text-blue-400 transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)] disabled:opacity-50" disabled={selectedChatIds.length === 0}>Deselect All</button>
                   </div>
                 </div>
-                <div className="max-h-48 overflow-y-auto border border-gray-700 rounded-md p-2 space-y-1 bg-gray-900/30">
+                <div className="max-h-48 overflow-y-auto border border-[var(--aurora-border)] rounded-md p-2 space-y-1 bg-black/20">
                   {filteredSessions.map(session => (
-                    <div key={session.id} className="flex items-center p-1.5 hover:bg-gray-700/50 rounded-md">
+                    <div key={session.id} className="flex items-center p-1.5 hover:bg-white/10 rounded-md">
                       <input
                         type="checkbox"
                         id={`export-chat-${session.id}`}
                         checked={selectedChatIds.includes(session.id)}
                         onChange={() => handleChatSelectionChange(session.id)}
-                        className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800"
+                        className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black"
                       />
                       <label htmlFor={`export-chat-${session.id}`} className="ml-2 text-sm text-gray-300 truncate cursor-pointer flex items-center">
                         {session.isCharacterModeActive && <UsersIcon className="w-3.5 h-3.5 mr-1.5 text-purple-400 flex-shrink-0"/>}
@@ -172,7 +174,7 @@ const ExportConfigurationModal: React.FC = () => {
             )}
           </div>
 
-          <div className="divide-y divide-gray-700/50">
+          <div className="divide-y divide-[var(--aurora-border)]">
             {renderCategoryHeader("Data Inclusion Preferences")}
             <ToggleOption id="includeChatSessionsAndMessages" label="Chat Sessions & Messages" description="Master toggle for all chat content. If off, most options below will be irrelevant for selected chats." checked={localConfig.includeChatSessionsAndMessages} onChange={handleToggleChange} />
             <ToggleOption id="includeMessageContent" label="Message Content" description="The text of user and AI messages." checked={localConfig.includeMessageContent} onChange={handleToggleChange} indented disabled={isCoreDataDisabled} />
@@ -200,12 +202,12 @@ const ExportConfigurationModal: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-gray-700 flex-shrink-0 space-y-3 sm:space-y-0">
-          <button onClick={handleResetConfigDefaults} type="button" className="px-3 py-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex items-center sm:w-auto w-full justify-center"><ArrowPathIcon className="w-3.5 h-3.5 mr-1.5" /> Reset Preferences</button>
+        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-[var(--aurora-border)] flex-shrink-0 space-y-3 sm:space-y-0">
+          <button onClick={handleResetConfigDefaults} type="button" className="px-3 py-2 text-xs font-medium text-blue-400 transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)] flex items-center sm:w-auto w-full justify-center"><ArrowPathIcon className="w-3.5 h-3.5 mr-1.5" /> Reset Preferences</button>
           <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
-            <button onClick={ui.closeExportConfigurationModal} type="button" className="px-4 py-2.5 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors w-full sm:w-auto">Cancel</button>
-            <button onClick={handleSaveCurrentConfig} type="button" className="px-4 py-2.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors flex items-center justify-center w-full sm:w-auto"><CheckIcon className="w-4 h-4 mr-1.5" /> Save Preferences</button>
-            <button onClick={handleInitiateExport} type="button" disabled={selectedChatIds.length === 0} className="px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"><DocumentDuplicateIcon className="w-4 h-4 mr-1.5" /> Export Selected ({selectedChatIds.length})</button>
+            <button onClick={ui.closeExportConfigurationModal} type="button" className="px-4 py-2.5 text-sm font-medium text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)] w-full sm:w-auto">Cancel</button>
+            <button onClick={handleSaveCurrentConfig} type="button" className="px-4 py-2.5 text-sm font-medium text-white bg-green-600/80 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(34,197,94,0.6)] flex items-center justify-center w-full sm:w-auto"><CheckIcon className="w-4 h-4 mr-1.5" /> Save Preferences</button>
+            <button onClick={handleInitiateExport} type="button" disabled={selectedChatIds.length === 0} className="px-4 py-2.5 text-sm font-medium text-white bg-[var(--aurora-accent-primary)] rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"><DocumentDuplicateIcon className="w-4 h-4 mr-1.5" /> Export Selected ({selectedChatIds.length})</button>
           </div>
         </div>
       </div>

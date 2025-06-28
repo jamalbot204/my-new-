@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // Simple Target/Locate Icon
@@ -18,7 +19,7 @@ const GoToMessageButton: React.FC<GoToMessageButtonProps> = ({ onClick, disabled
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`p-1.5 text-gray-400 hover:text-blue-300 rounded-full hover:bg-gray-700/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-1 flex-shrink-0`}
+      className={`p-1.5 text-gray-400 hover:text-blue-300 rounded-full hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-1 flex-shrink-0`}
       title="Go to playing message"
       aria-label="Go to playing message"
     >

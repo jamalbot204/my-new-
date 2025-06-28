@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { SaveDiskIcon, CheckIcon } from './Icons';
 interface ManualSaveButtonProps {
@@ -44,8 +46,8 @@ const ManualSaveButton: React.FC<ManualSaveButtonProps> = ({ onManualSave, disab
     <button
       onClick={handleClick}
       disabled={disabled || isSaving}
-      className={`p-1.5 rounded-md hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
-                  ${disabled || isSaving ? 'opacity-60 cursor-not-allowed' : 'hover:text-white'}`}
+      className={`p-1.5 rounded-md transition-all focus:outline-none focus:ring-2 ring-[var(--aurora-accent-primary)]
+                  ${disabled || isSaving ? 'opacity-60 cursor-not-allowed' : 'hover:text-white hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]'}`}
       title={buttonTitle}
       aria-label={buttonTitle}
     >

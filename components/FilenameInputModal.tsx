@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useUIContext } from '../contexts/UIContext'; // Assuming UIContext exports close and submit actions
 import { CheckIcon, CloseIcon as CancelIcon, ArrowDownTrayIcon } from './Icons'; // Re-using existing icons
@@ -42,14 +43,14 @@ const FilenameInputModal: React.FC<FilenameInputModalProps> = ({
 
   return (
     <div 
-        className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby="filename-input-modal-title"
         onClick={onClose} // Close on backdrop click
     >
       <div 
-        className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-md max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700"
+        className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-md max-h-[90vh] flex flex-col text-gray-200"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the modal
       >
         <div className="flex justify-between items-center mb-4">
@@ -59,7 +60,7 @@ const FilenameInputModal: React.FC<FilenameInputModalProps> = ({
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
+            className="text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
             aria-label="Close filename input"
           >
             <CancelIcon className="w-5 h-5" />
@@ -74,7 +75,7 @@ const FilenameInputModal: React.FC<FilenameInputModalProps> = ({
             type="text"
             value={currentFilename}
             onChange={handleInputChange}
-            className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200 mb-6"
+            className="w-full p-2.5 aurora-input mb-6"
             aria-label="Filename for audio"
             placeholder="Enter filename"
           />
@@ -82,16 +83,16 @@ const FilenameInputModal: React.FC<FilenameInputModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors flex items-center"
+              className="px-4 py-2 text-sm font-medium text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)] flex items-center"
             >
               <CancelIcon className="w-4 h-4 mr-1.5" /> Cancel
             </button>
             <button
               type="submit"
               disabled={!currentFilename.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-[var(--aurora-accent-primary)] rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)] flex items-center disabled:opacity-50"
             >
-              <CheckIcon className="w-4 h-4 mr-1.5" /> Download
+                <CheckIcon className="w-4 h-4 mr-1.5" /> Confirm
             </button>
           </div>
         </form>

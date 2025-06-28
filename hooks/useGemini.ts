@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatSession, ChatMessage, ChatMessageRole, GeminiSettings, Attachment, AICharacter, HarmCategory, HarmBlockThreshold, SafetySetting, FullResponseData, UserMessageInput, LogApiRequestCallback, UseGeminiReturn, GeminiHistoryEntry } from '../types';
 import { getFullChatResponse, generateMimicUserResponse, clearCachedChat as geminiServiceClearCachedChat, mapMessagesToGeminiHistoryInternal } from '../services/geminiService'; // Updated import
@@ -8,6 +7,7 @@ import { findPrecedingUserMessageIndex, getHistoryUpToMessage } from '../service
 
 // Define props for the hook
 interface UseGeminiProps {
+  apiKey: string;
   currentChatSession: ChatSession | null;
   updateChatSession: (sessionId: string, updater: (session: ChatSession) => ChatSession | null) => Promise<void>;
   logApiRequestDirectly: LogApiRequestCallback;
@@ -16,6 +16,7 @@ interface UseGeminiProps {
 }
 
 export function useGemini({
+  apiKey,
   currentChatSession,
   updateChatSession,
   logApiRequestDirectly,
@@ -267,6 +268,7 @@ export function useGemini({
 
     // 5. Call getFullChatResponse
     await getFullChatResponse(
+        apiKey,
         activeChatIdForThisCall,
         finalUserMessageInputForAPI, // Current turn's content
         currentChatSession.model,
@@ -384,7 +386,7 @@ export function useGemini({
         settingsOverrideForAPICall,
         currentChatSession.aiCharacters
     );
-  }, [currentChatSession, isLoading, updateChatSession, logApiRequestDirectly, setMessageGenerationTimes, lastMessageHadAttachments, onNewAIMessageFinalized]);
+  }, [apiKey, currentChatSession, isLoading, updateChatSession, logApiRequestDirectly, setMessageGenerationTimes, lastMessageHadAttachments, onNewAIMessageFinalized]);
 
 
   const handleContinueFlow = useCallback(async () => {
@@ -457,6 +459,7 @@ export function useGemini({
 
 
         await getFullChatResponse(
+            apiKey,
             activeChatIdForThisCall,
             userMessageInputForAPI, // Content of the last user message
             currentChatSession.model,
@@ -527,6 +530,7 @@ export function useGemini({
             );
 
             const generatedText = await generateMimicUserResponse(
+                apiKey,
                 currentChatSession.model,
                 historyForStandardGeminiCall, // Pass the standard history
                 persona,
@@ -574,7 +578,7 @@ export function useGemini({
         onFullResponseCalledForPendingMessageRef.current = false;
         setLastMessageHadAttachments(false);
     }
-  }, [currentChatSession, isLoading, updateChatSession, logApiRequestDirectly, setMessageGenerationTimes, onNewAIMessageFinalized]);
+  }, [apiKey, currentChatSession, isLoading, updateChatSession, logApiRequestDirectly, setMessageGenerationTimes, onNewAIMessageFinalized]);
 
   const handleRegenerateAIMessage = useCallback(async (sessionId: string, aiMessageIdToRegenerate: string) => {
     if (!currentChatSession || isLoading || currentChatSession.id !== sessionId) return;
@@ -677,6 +681,7 @@ export function useGemini({
 
 
     await getFullChatResponse(
+      apiKey,
       sessionId,
       userMessageInputForAPI, // Current user's input that led to the AI message
       currentChatSession.model,
@@ -743,7 +748,7 @@ export function useGemini({
       settingsOverrideForRegen,
       currentChatSession.aiCharacters
     );
-  }, [currentChatSession, isLoading, updateChatSession, logApiRequestDirectly, setMessageGenerationTimes, onNewAIMessageFinalized]);
+  }, [apiKey, currentChatSession, isLoading, updateChatSession, logApiRequestDirectly, setMessageGenerationTimes, onNewAIMessageFinalized]);
 
 
   const handleRegenerateResponseForUserMessage = useCallback(async (sessionId: string, userMessageId: string) => {
@@ -930,6 +935,7 @@ export function useGemini({
         };
 
         await getFullChatResponse(
+            apiKey,
             sessionId,
             userMessageInputForContinue, // New prefix to continue
             currentChatSession.model,
@@ -961,7 +967,7 @@ export function useGemini({
     }
     // SAVE_LOCALLY and CANCEL are handled by useChatInteractions hook's wrapper
   }, [
-      currentChatSession, isLoading, updateChatSession, handleSendMessage, logApiRequestDirectly,
+      apiKey, currentChatSession, isLoading, updateChatSession, handleSendMessage, logApiRequestDirectly,
       setMessageGenerationTimes, onNewAIMessageFinalized, setLastMessageHadAttachments
   ]);
 

@@ -102,6 +102,12 @@ export interface TTSSettings {
   maxWordsPerSegment?: number; // New: Max words per TTS segment
 }
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  value: string;
+}
+
 export interface GeminiSettings {
   systemInstruction?: string;
   userPersonaInstruction?: string; 
@@ -165,6 +171,7 @@ export interface ApiRequestPayload {
   file?: { name: string, type: string, size: number, data?: string }; // For files.uploadFile (input)
   fileName?: string; // For files.getFile, files.delete (input)
   fileApiResponse?: any; // For logging responses from file operations
+  apiKeyUsed?: string; // For logging which key was used
 }
 
 

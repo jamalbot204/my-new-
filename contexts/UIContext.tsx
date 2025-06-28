@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useAppUI, ToastInfo } from '../hooks/useAppUI';
 import { useAppModals, FilenameInputModalTriggerProps } from '../hooks/useAppModals';
@@ -66,6 +67,14 @@ interface UIContextType {
   attachmentsForModal: AttachmentWithContext[];
   openChatAttachmentsModal: (session: ChatSession | null) => void;
   closeChatAttachmentsModal: () => void;
+
+  // For multi-select
+  isSelectionModeActive: boolean;
+  selectedMessageIds: Set<string>;
+  toggleSelectionMode: () => void;
+  toggleMessageSelection: (messageId: string) => void;
+  clearSelection: () => void;
+  selectAllVisible: (visibleMessageIds: string[]) => void;
 }
 
 // Create the context with a default value of null

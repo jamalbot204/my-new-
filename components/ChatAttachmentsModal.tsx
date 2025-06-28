@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import { AttachmentWithContext, ChatMessageRole } from '../types';
 import { CloseIcon, DocumentIcon, PlayCircleIcon, ArrowUturnLeftIcon, UserIcon, SparklesIcon } from './Icons'; // Assuming Sparkles for AI
@@ -48,83 +50,65 @@ const ChatAttachmentsModal: React.FC<ChatAttachmentsModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="chat-attachments-modal-title"
+      onClick={onClose}
     >
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
+      <div 
+        className="aurora-panel p-5 sm:p-6 rounded-lg shadow-2xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col text-gray-200"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center mb-4 flex-shrink-0">
-          <h2 id="chat-attachments-modal-title" className="text-xl font-semibold text-gray-100 truncate pr-4">
-            Attachments in "{chatTitle}"
-          </h2>
+          <h2 id="chat-attachments-modal-title" className="text-xl font-semibold text-gray-100 truncate">Attachments in "{chatTitle}"</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
-            aria-label="Close chat attachments"
+            className="text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
+            aria-label="Close attachments view"
           >
-            <CloseIcon className="w-6 h-6" />
+            <CloseIcon className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
-        {attachments.length === 0 ? (
-          <div className="flex-grow flex items-center justify-center">
-            <p className="text-gray-500 italic">No attachments found in this chat.</p>
-          </div>
-        ) : (
-          <div className="flex-grow overflow-y-auto space-y-3 pr-2 -mr-2 hide-scrollbar">
-            {attachments.map((item) => (
-              <div
-                key={`${item.messageId}-${item.attachment.id}`}
-                className="w-full flex items-center p-3 bg-gray-700 rounded-md group"
-              >
-                <div className="flex-shrink-0 w-12 h-12 bg-gray-600 rounded-md flex items-center justify-center mr-3">
-                  {getFileIcon(item)}
-                </div>
-                <div className="flex-grow min-w-0 text-left">
-                  <p className="text-sm font-medium text-gray-200 truncate" title={item.attachment.name}>
-                    {item.attachment.name} ({getDisplayFileType(item.attachment)})
-                  </p>
-                  <div className="text-xs text-gray-400 flex items-center mt-0.5">
-                    {getRoleIcon(item.messageRole)}
-                    <span className="ml-1">
-                      {item.messageRole === ChatMessageRole.USER ? 'User' : 'AI'} on {new Date(item.messageTimestamp).toLocaleDateString()}
-                    </span>
+        <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-3">
+          {attachments.length === 0 ? (
+            <p className="text-gray-400 italic text-center py-8">No attachments in this chat.</p>
+          ) : (
+            attachments.map(item => (
+              <div key={item.attachment.id} className="p-3 bg-white/5 rounded-md flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex-shrink-0">{getFileIcon(item)}</div>
+                  <div className="flex-grow min-w-0">
+                    <p className="font-medium text-gray-200 truncate" title={item.attachment.name}>{item.attachment.name}</p>
+                    <p className="text-xs text-gray-400 truncate" title={item.messageContentSnippet}>
+                      From: <span className="italic">"{item.messageContentSnippet}"</span>
+                    </p>
+                    <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                      <span>{getRoleIcon(item.messageRole)}</span>
+                      <span>{new Date(item.messageTimestamp).toLocaleString()}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 truncate mt-0.5" title={item.messageContentSnippet}>
-                    Message: {item.messageContentSnippet || (item.attachment.type === 'image' ? '[Image]' : (item.attachment.type === 'video' ? '[Video]' : '[File]'))}
-                  </p>
                 </div>
-                <div className="flex items-center space-x-2 ml-3 flex-shrink-0">
-                  {item.attachment.fileUri && chat.currentChatSession && (
-                    <RefreshAttachmentButton
+                <div className="flex items-center space-x-1 flex-shrink-0">
+                  {item.attachment.fileUri && (
+                    <RefreshAttachmentButton 
                       attachment={item.attachment}
-                      onReUpload={async () => {
-                        if (chat.currentChatSession) {
-                           await chat.handleReUploadAttachment(chat.currentChatSession.id, item.messageId, item.attachment.id);
-                        }
-                      }}
-                      disabled={item.attachment.isReUploading || chat.isLoading || chat.autoSendHook.isAutoSendingActive}
+                      onReUpload={() => chat.handleReUploadAttachment(chat.currentChatSession!.id, item.messageId, item.attachment.id)}
+                      disabled={item.attachment.isReUploading || chat.isLoading}
                     />
                   )}
-                  <button
+                  <button 
                     onClick={() => onGoToMessage(item.messageId)}
-                    className="p-1.5 text-gray-400 hover:text-blue-300 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    aria-label={`Go to message with attachment ${item.attachment.name}`}
+                    className="p-1.5 text-gray-400 hover:text-blue-300 rounded-full hover:bg-white/10 transition-colors"
                     title="Go to message"
                   >
                     <ArrowUturnLeftIcon className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
+            ))
+          )}
+        </div>
+        
         <div className="mt-6 flex justify-end flex-shrink-0">
-          <button
-            onClick={onClose}
-            type="button"
-            className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors"
-          >
-            Close
-          </button>
+          <button onClick={onClose} className="px-4 py-2 text-sm bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]">Close</button>
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { ChatSession, ChatMessage, ChatMessageRole, Attachment } from '../types'; // Adjusted paths
 import { EditMessagePanelAction, EditMessagePanelDetails } from '../components/EditMessagePanel'; // Adjusted paths
@@ -8,6 +7,7 @@ import { uploadFileViaApi, deleteFileViaApi } from '../services/geminiService'; 
 import { LogApiRequestCallback } from '../types'; // Added for logApiRequest
 
 interface UseChatInteractionsProps {
+  apiKey: string;
   currentChatSession: ChatSession | null;
   updateChatSession: (sessionId: string, updater: (session: ChatSession) => ChatSession | null) => Promise<void>;
   showToast: (message: string, type?: 'success' | 'error') => void;
@@ -50,6 +50,7 @@ function base64StringToFile(base64String: string, filename: string, mimeType: st
 
 
 export function useChatInteractions({
+  apiKey,
   currentChatSession,
   updateChatSession,
   showToast,
@@ -319,7 +320,7 @@ export function useChatInteractions({
     try {
       const fileToReUpload = base64StringToFile(originalAttachment.base64Data, originalAttachment.name, originalAttachment.mimeType);
       
-      const uploadResult = await uploadFileViaApi(fileToReUpload, logApiRequest);
+      const uploadResult = await uploadFileViaApi(apiKey, fileToReUpload, logApiRequest);
 
       if (uploadResult.error || !uploadResult.fileUri || !uploadResult.fileApiName) {
         throw new Error(uploadResult.error || "Failed to get new file URI from API.");
@@ -328,7 +329,7 @@ export function useChatInteractions({
       // Attempt to delete the old file if it existed
       if (originalAttachment.fileApiName) {
         try {
-          await deleteFileViaApi(originalAttachment.fileApiName, logApiRequest);
+          await deleteFileViaApi(apiKey, originalAttachment.fileApiName, logApiRequest);
         } catch (deleteError: any) {
           console.warn("Failed to delete old file during re-upload:", deleteError);
           showToast("Old file deletion failed, but new URL obtained.", "error"); // Non-critical error
@@ -382,7 +383,7 @@ export function useChatInteractions({
         return { ...session, messages: updatedMessages };
       });
     }
-  }, [currentChatSession, updateChatSession, showToast, logApiRequest]);
+  }, [apiKey, currentChatSession, updateChatSession, showToast, logApiRequest]);
 
 
   return {

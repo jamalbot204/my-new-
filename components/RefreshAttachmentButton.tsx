@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { ArrowPathIcon, XCircleIcon } from './Icons';
 import { Attachment } from '../types';
@@ -49,8 +50,8 @@ const RefreshAttachmentButton: React.FC<RefreshAttachmentButtonProps> = ({
       disabled={disabled || isLoading}
       title={title}
       aria-label={title}
-      className={`p-1 bg-black bg-opacity-40 rounded-full hover:bg-opacity-60 transition-colors
-                  ${disabled || isLoading ? 'cursor-not-allowed opacity-70' : ''}
+      className={`p-1 bg-black bg-opacity-40 rounded-full transition-all
+                  ${disabled || isLoading ? 'cursor-not-allowed opacity-70' : 'hover:shadow-[0_0_8px_1px_rgba(59,130,246,0.6)]'}
                   ${iconColor}
                 `}
     >

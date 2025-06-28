@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { SafetySetting, HarmCategory, HarmBlockThreshold } from '../types';
 import { DEFAULT_SAFETY_SETTINGS, HARM_CATEGORY_LABELS, HARM_BLOCK_THRESHOLD_LABELS } from '../constants';
@@ -55,11 +56,11 @@ const SafetySettingsModal: React.FC<SafetySettingsModalProps> = ({ isOpen, curre
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto text-gray-200 relative ring-1 ring-gray-700">
+    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-md">
+      <div className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto text-gray-200 relative">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
+          className="absolute top-3 right-3 text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
           aria-label="Close safety settings"
         >
           <CloseIcon className="w-6 h-6" />
@@ -78,7 +79,7 @@ const SafetySettingsModal: React.FC<SafetySettingsModalProps> = ({ isOpen, curre
               <select
                 id={`safety-${setting.category}`}
                 name={setting.category}
-                className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200"
+                className="w-full p-2.5 aurora-select"
                 value={setting.threshold}
                 onChange={(e) => handleThresholdChange(setting.category, e.target.value as HarmBlockThreshold)}
               >
@@ -96,7 +97,7 @@ const SafetySettingsModal: React.FC<SafetySettingsModalProps> = ({ isOpen, curre
             <button
                 onClick={handleResetDefaults}
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-blue-400 transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]"
             >
                 Reset defaults
             </button>
@@ -104,14 +105,14 @@ const SafetySettingsModal: React.FC<SafetySettingsModalProps> = ({ isOpen, curre
                 <button
                     onClick={onClose}
                     type="button"
-                    className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors  w-full sm:w-auto"
+                    className="px-4 py-2 text-sm font-medium text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)] w-full sm:w-auto"
                 >
                     Cancel
                 </button>
                 <button
                     onClick={handleSubmit}
                     type="button"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors w-full sm:w-auto"
+                    className="px-4 py-2 text-sm font-medium text-white bg-[var(--aurora-accent-primary)] rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)] w-full sm:w-auto"
                 >
                     Apply
                 </button>

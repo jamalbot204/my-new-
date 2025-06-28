@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
@@ -43,38 +45,38 @@ const CharacterManagementModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-lg max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
+    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-md">
+      <div className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col text-gray-200">
         <div className="flex justify-between items-center mb-4 flex-shrink-0">
           <h2 className="text-xl font-semibold">Manage Characters</h2>
-          <button onClick={closeCharacterManagementModal} className="p-1 text-gray-400 hover:text-gray-100 rounded-full hover:bg-gray-700"><CloseIcon /></button>
+          <button onClick={closeCharacterManagementModal} className="p-1 text-gray-400 rounded-full transition-all hover:text-gray-100 hover:drop-shadow-[0_0_4px_rgba(255,255,255,0.5)]"><CloseIcon /></button>
         </div>
 
         <div className="mb-6 space-y-3 overflow-y-auto pr-2 flex-grow min-h-0">
             {characters.length === 0 && <p className="text-gray-400 italic">No characters defined yet.</p>}
             {characters.map(char => (
-                <div key={char.id} className="p-3 bg-gray-700 rounded-md flex justify-between items-center">
+                <div key={char.id} className="p-3 bg-white/5 rounded-md flex justify-between items-center">
                     <div>
-                        <p className="font-medium">{char.name}</p>
+                        <p className="font-medium text-purple-300">{char.name}</p>
                         <p className="text-xs text-gray-400 truncate max-w-xs" title={char.systemInstruction}>{char.systemInstruction}</p>
                     </div>
                     <div className="flex space-x-1.5">
-                        <button onClick={() => openCharacterContextualInfoModal(char)} className="p-1.5 text-sky-400 hover:text-sky-300" title="Edit Contextual Info"><InfoIcon className="w-4 h-4"/></button>
-                        <button onClick={() => startEdit(char)} className="p-1.5 text-blue-400 hover:text-blue-300" title="Edit Character"><PencilIcon className="w-4 h-4"/></button>
-                        <button onClick={() => handleDeleteCharacter(char.id)} className="p-1.5 text-red-400 hover:text-red-300" title="Delete Character"><TrashIcon className="w-4 h-4"/></button>
+                        <button onClick={() => openCharacterContextualInfoModal(char)} className="p-1.5 text-sky-400 transition-all hover:text-sky-300 hover:drop-shadow-[0_0_4px_rgba(56,189,248,0.9)]" title="Edit Contextual Info"><InfoIcon className="w-4 h-4"/></button>
+                        <button onClick={() => startEdit(char)} className="p-1.5 text-blue-400 transition-all hover:text-blue-300 hover:drop-shadow-[0_0_4px_rgba(90,98,245,0.9)]" title="Edit Character"><PencilIcon className="w-4 h-4"/></button>
+                        <button onClick={() => handleDeleteCharacter(char.id)} className="p-1.5 text-red-400 transition-all hover:text-red-300 hover:drop-shadow-[0_0_4px_rgba(239,68,68,0.9)]" title="Delete Character"><TrashIcon className="w-4 h-4"/></button>
                     </div>
                 </div>
             ))}
         </div>
         
-        <div className="border-t border-gray-700 pt-4 flex-shrink-0">
+        <div className="border-t border-[var(--aurora-border)] pt-4 flex-shrink-0">
           <h3 className="text-lg font-medium mb-2">{editingCharacter ? 'Edit Character' : 'Add New Character'}</h3>
           <input 
             type="text" 
             placeholder="Character Name (e.g., Wizard)" 
             value={newCharName}
             onChange={(e) => setNewCharName(e.target.value)}
-            className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md mb-3 text-gray-200 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full p-2.5 aurora-input mb-3"
             aria-label="Character Name"
           />
           <textarea 
@@ -82,15 +84,15 @@ const CharacterManagementModal: React.FC = () => {
             value={newCharInstruction}
             onChange={(e) => setNewCharInstruction(e.target.value)}
             rows={4}
-            className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md mb-3 text-gray-200 focus:ring-blue-500 focus:border-blue-500 hide-scrollbar resize-none"
+            className="w-full p-2.5 aurora-textarea mb-3 hide-scrollbar resize-none"
             aria-label="Character Personality and Role"
           />
           <div className="flex justify-end space-x-2">
-            {editingCharacter && <button onClick={() => { setEditingCharacter(null); setNewCharName(''); setNewCharInstruction('');}} className="px-4 py-2 text-sm text-gray-300 bg-gray-600 hover:bg-gray-500 rounded-md">Cancel Edit</button>}
+            {editingCharacter && <button onClick={() => { setEditingCharacter(null); setNewCharName(''); setNewCharInstruction('');}} className="px-4 py-2 text-sm text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]">Cancel Edit</button>}
             <button 
                 onClick={handleSave} 
                 disabled={!newCharName.trim() || !newCharInstruction.trim()}
-                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-[var(--aurora-accent-primary)] text-white rounded-md disabled:opacity-50 transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]"
             >
                 {editingCharacter ? 'Save Changes' : 'Add Character'}
             </button>
@@ -98,7 +100,7 @@ const CharacterManagementModal: React.FC = () => {
         </div>
 
         <div className="mt-6 flex justify-end flex-shrink-0">
-          <button onClick={closeCharacterManagementModal} className="px-4 py-2 text-sm bg-gray-600 hover:bg-gray-500 rounded-md">Close</button>
+          <button onClick={closeCharacterManagementModal} className="px-4 py-2 text-sm bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]">Close</button>
         </div>
       </div>
     </div>

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPlayerState } from '../types';
 import {
@@ -123,12 +125,12 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
     : isPlaying ? PauseIcon : PlayIcon;
 
   const playPauseButtonTitle = isLoading ? "Loading audio..." : (isPlaying ? "Pause" : "Play");
-  const speedButtonBaseClass = "p-1 text-gray-400 hover:text-white rounded-full hover:bg-gray-700/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  const speedButtonBaseClass = "p-1 text-gray-400 hover:text-white rounded-full transition-all hover:shadow-[0_0_8px_1px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed";
 
 
   return (
     <div
-      className="bg-gray-800/95 backdrop-blur-sm text-gray-200 p-2 shadow-xl border-b border-gray-700 flex flex-col relative z-50"
+      className="aurora-panel text-gray-200 p-2 shadow-xl border-b border-[var(--aurora-border)] flex flex-col relative z-50"
       role="toolbar"
       aria-label="Audio Player"
     >
@@ -152,7 +154,7 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
         <div className="flex items-center space-x-1 sm:space-x-2 flex-grow justify-center">
             <button
             onClick={() => onSeekRelative(-10)}
-            className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-gray-700/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1.5 text-gray-400 hover:text-white rounded-full transition-all hover:shadow-[0_0_8px_1px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
             title="Rewind 10s"
             aria-label="Rewind 10 seconds"
             disabled={isLoading || !currentMessageId || !duration}
@@ -172,7 +174,7 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
 
             <button
             onClick={onTogglePlayPause}
-            className="p-1.5 sm:p-2 text-gray-200 bg-gray-700/80 hover:bg-gray-600/80 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            className="p-1.5 sm:p-2 text-gray-200 bg-white/10 rounded-full transition-all hover:shadow-[0_0_10px_2px_rgba(90,98,245,0.6)] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 ring-[var(--aurora-accent-primary)] focus:ring-offset-2 focus:ring-offset-black"
             title={playPauseButtonTitle}
             aria-label={playPauseButtonTitle}
             disabled={!onTogglePlayPause || (!isLoading && !currentMessageId)}
@@ -196,7 +198,7 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
 
             <button
             onClick={() => onSeekRelative(10)}
-            className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-gray-700/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1.5 text-gray-400 hover:text-white rounded-full transition-all hover:shadow-[0_0_8px_1px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
             title="Fast-Forward 10s"
             aria-label="Fast-Forward 10 seconds"
             disabled={isLoading || !currentMessageId || !duration}
@@ -209,7 +211,7 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
         <div className="flex-shrink-0 ml-auto">
             <button
                 onClick={onCloseView} // Updated to use onCloseView
-                className="p-1.5 text-gray-400 hover:text-red-400 rounded-full hover:bg-gray-700/70 transition-colors"
+                className="p-1.5 text-gray-400 rounded-full transition-all hover:text-red-400 hover:shadow-[0_0_10px_1px_rgba(239,68,68,0.7)]"
                 title="Close Player"
                 aria-label="Close audio player"
             >
@@ -222,7 +224,7 @@ const AdvancedAudioPlayer: React.FC<AdvancedAudioPlayerProps> = ({
       <div className="flex items-center w-full space-x-1 px-1 pt-1.5 sm:pt-2">
             <span className="text-xs text-gray-400 w-8 text-right tabular-nums flex-shrink-0">{formatTime(displayTime)}</span>
             <div
-                className="flex-grow h-1.5 sm:h-2 bg-gray-600/80 rounded-full cursor-pointer group relative min-w-[30px] sm:min-w-[50px]"
+                className="flex-grow h-1.5 sm:h-2 bg-black/30 rounded-full cursor-pointer group relative min-w-[30px] sm:min-w-[50px]"
                 onClick={handleProgressClick}
             >
                 <div

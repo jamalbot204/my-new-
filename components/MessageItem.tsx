@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useRef, memo } from 'react'; // Added memo
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,7 +53,7 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
     if (inline) {
       return (
         <code 
-          className="bg-gray-700 text-gray-300 rounded font-mono"
+          className="bg-black/30 text-indigo-300 rounded font-mono border border-white/10"
           style={{ 
             padding: '0.1em 0.3em', 
             fontSize: '0.875em', 
@@ -72,8 +71,8 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
     const lang = match && match[1] ? match[1] : ''; 
 
     return (
-      <div className="relative group/codeblock my-2 rounded-md overflow-hidden shadow border border-gray-700">
-        <div className="flex justify-start items-center px-3 py-1.5 bg-gray-700">
+      <div className="relative group/codeblock my-2 rounded-md overflow-hidden shadow border border-white/10 bg-[#0A0910]">
+        <div className="flex justify-start items-center px-3 py-1.5 bg-black/20">
           <span className="text-xs text-gray-300 font-mono">
             {lang || 'code'} 
           </span>
@@ -90,7 +89,8 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
                 overflowX: 'hidden', 
                 fontSize: '0.9em',
                 whiteSpace: 'pre-wrap', 
-                wordBreak: 'break-word' 
+                wordBreak: 'break-word',
+                backgroundColor: 'transparent'
             }}
             codeTagProps={{ 
                 style: { 
@@ -108,7 +108,7 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
           </SyntaxHighlighter>
         ) : ( 
           <pre 
-            className="bg-gray-800 text-gray-200 p-4 text-sm font-mono overflow-x-hidden whitespace-pre-wrap break-words m-0 rounded-b-md" 
+            className="bg-transparent text-gray-200 p-4 text-sm font-mono overflow-x-hidden whitespace-pre-wrap break-words m-0 rounded-b-md" 
           >
             <code className={className || ''}> 
               {finalCodeString}
@@ -119,7 +119,7 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
           onClick={handleCopyCode}
           title={isCodeCopied ? "Copied!" : "Copy code"}
           aria-label={isCodeCopied ? "Copied code to clipboard" : "Copy code to clipboard"}
-          className="absolute bottom-3 right-3 p-1.5 bg-gray-800 bg-opacity-60 hover:bg-gray-700 text-gray-300 hover:text-white rounded-md transition-all duration-150 opacity-0 group-hover/codeblock:opacity-100 focus:opacity-100"
+          className="absolute bottom-3 right-3 p-1.5 bg-black/30 text-gray-300 hover:text-white rounded-md transition-all duration-150 opacity-0 group-hover/codeblock:opacity-100 focus:opacity-100 hover:shadow-[0_0_8px_1px_rgba(255,255,255,0.2)]"
         >
           {isCodeCopied ? <CheckIcon className="w-4 h-4 text-green-400" /> : <ClipboardIcon className="w-4 h-4" />}
         </button>
@@ -128,7 +128,7 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
   };
 
 
-const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoization
+const MessageItemComponent: React.FC<MessageItemProps> = ({ 
   message, 
   canRegenerateFollowingAI,
   chatScrollContainerRef,
@@ -152,9 +152,14 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
 
   const [isThoughtsExpanded, setIsThoughtsExpanded] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
-  // Removed isPromptActive state
-
+  
   const markdownContentRef = useRef<HTMLDivElement>(null); 
+  const rootDivRef = useRef<HTMLDivElement>(null);
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
+
+  // Multi-select state from context
+  const { isSelectionModeActive, selectedMessageIds, toggleMessageSelection } = ui;
+  const isSelected = isSelectionModeActive && selectedMessageIds.has(message.id);
   
   let displayContent = message.content;
   let extractedThoughts: string | null = null;
@@ -194,7 +199,33 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
     : displayContent;
 
   useEffect(() => {
-    if (markdownContentRef.current) {
+    const currentRef = rootDivRef.current;
+    if (!currentRef || hasBeenVisible) return; // Don't observe if already visible
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasBeenVisible(true);
+          observer.unobserve(currentRef); 
+        }
+      },
+      {
+        root: chatScrollContainerRef?.current || null,
+        rootMargin: '250px 0px', 
+        threshold: 0.01, 
+      }
+    );
+
+    observer.observe(currentRef);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [chatScrollContainerRef, message.id, hasBeenVisible]);
+
+
+  useEffect(() => {
+    if (hasBeenVisible && markdownContentRef.current) { // Only highlight if visible and ref available
       const instance = new Mark(markdownContentRef.current);
       instance.unmark({
         done: () => {
@@ -211,12 +242,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
         }
       });
     }
-  }, [highlightTerm, contentToRender, isContentExpanded]); 
+  }, [highlightTerm, contentToRender, isContentExpanded, hasBeenVisible]); 
 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Custom modal clicks are handled by stopping propagation at the modal level.
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node) &&
@@ -391,12 +421,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
 
 
   const bubbleClasses = isUser
-    ? 'bg-blue-600 text-white self-end'
+    ? 'bg-indigo-500/10 border border-indigo-400/30 shadow-lg shadow-indigo-900/20 self-end text-white'
     : isError
-    ? 'bg-red-500 text-white self-start'
-    : message.characterName 
-    ? 'bg-purple-700 text-gray-200 self-start' 
-    : 'bg-gray-700 text-gray-200 self-start';
+    ? 'aurora-surface border-red-500/50 shadow-lg shadow-red-900/30 self-start text-white'
+    : 'self-start text-gray-200';
   
   const layoutClasses = isUser ? 'justify-end' : 'justify-start';
 
@@ -447,22 +475,23 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
     onClick: () => void;
     icon: React.FC<{ className?: string }>;
     label: string; 
+    hoverGlowClassName?: string;
     className?: string;
     disabled?: boolean;
-  }> = ({ onClick, icon: Icon, label, className, disabled = false }) => (
+  }> = ({ onClick, icon: Icon, label, hoverGlowClassName, className, disabled = false }) => (
     <button
       role="menuitem"
       disabled={disabled}
       title={label} 
       aria-label={label}
-      className={`w-auto p-2 text-sm flex items-center justify-center transition-colors rounded-md ${
+      className={`w-auto p-2 text-sm flex items-center justify-center rounded-md transition-all ${
         disabled 
           ? 'text-gray-500 cursor-not-allowed' 
-          : `text-gray-200 hover:bg-gray-600 ${className || ''}`
+          : `text-gray-200 ${hoverGlowClassName || 'hover:bg-white/10'} ${className || ''}`
       }`}
-      onMouseDown={() => { if (!disabled) onClick(); }} // Use onMouseDown to fire before blur that closes dropdown
-      onTouchStart={() => { if (!disabled) onClick(); }} // For touch devices
-      onClick={(e) => { e.preventDefault(); }} // Prevent any default button behavior that might interfere
+      onMouseDown={() => { if (!disabled) onClick(); }} 
+      onTouchStart={() => { if (!disabled) onClick(); }} 
+      onClick={(e) => { e.preventDefault(); }} 
     >
       <Icon className={`w-5 h-5 ${disabled ? 'text-gray-500' : ''}`} />
     </button>
@@ -521,11 +550,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
             onClick={clickHandler}
             title={title}
             aria-label={title}
-            className={`p-1.5 text-gray-300 hover:text-white rounded-md bg-black bg-opacity-20 hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-blue-500
+            className={`p-1.5 text-gray-300 rounded-md bg-black bg-opacity-20 transition-shadow focus:outline-none focus:ring-2 ring-[var(--aurora-accent-primary)] hover:text-white hover:shadow-[0_0_8px_1px_rgba(34,197,94,0.6)]
                         ${iconClassName}
                         ${isPulsing ? 'animate-pulse' : ''}
                       `}
-            disabled={isDisabled}
+            disabled={isDisabled || isSelectionModeActive}
         >
             <IconComponent className="w-4 h-4" />
             {partIndexInput !== undefined && <span className="text-xs ml-1">P{partIndexInput+1}</span>}
@@ -535,14 +564,47 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
 
   const showIndividualPartControls = numExpectedTtsParts > 1 && allTtsPartsCached;
 
+  const Checkbox = () => (
+    isSelectionModeActive && (
+        <div className="flex-shrink-0 self-center px-2">
+            <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => toggleMessageSelection(message.id)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-4 h-4 text-[var(--aurora-accent-primary)] bg-black/30 border-white/20 rounded focus:ring-[var(--aurora-accent-primary)] focus:ring-offset-black cursor-pointer"
+                aria-label={`Select message from ${message.role}`}
+            />
+        </div>
+    )
+  );
+
 
   return (
-    <div id={`message-item-${message.id}`} className={`group flex ${layoutClasses} mb-1 w-full relative`} role="listitem">
+    <div 
+      ref={rootDivRef} 
+      id={`message-item-${message.id}`} 
+      className={`group flex items-start mb-1 w-full relative transition-colors duration-200 ${isSelected ? 'bg-blue-900/40 rounded-md' : ''} ${isSelectionModeActive ? 'cursor-pointer' : ''} ${layoutClasses}`} 
+      onClick={() => isSelectionModeActive && toggleMessageSelection(message.id)}
+      role="listitem"
+    >
+      {!isUser && isSelectionModeActive && <Checkbox />}
+      {!hasBeenVisible ? (
+        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-xl lg:max-w-2xl xl:max-w-3xl w-full`}>
+          <div 
+            className={`px-4 py-3 rounded-lg opacity-40 animate-pulse w-3/4 sm:w-1/2 bg-white/5`}
+            style={{ minHeight: '50px' }} 
+          >
+            <div className="h-3 bg-white/10 rounded w-3/4 mb-2"></div>
+            <div className="h-2 bg-white/10 rounded w-1/2"></div>
+          </div>
+        </div>
+      ) : (
       <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-xl lg:max-w-2xl xl:max-w-3xl`}>
         {isModel && message.isStreaming && !isError && !extractedThoughts && (
           <div 
             className={`flex items-center space-x-1.5 mb-1.5 px-3 py-1.5 rounded-lg shadow 
-                        ${message.characterName ? 'bg-purple-600' : 'bg-gray-600'} 
+                        ${message.characterName ? 'bg-purple-900/30' : 'bg-black/20'} 
                         animate-thinking-dots`}
             aria-label="AI is thinking"
             role="status"
@@ -555,10 +617,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
 
         {isModel && !isError && extractedThoughts && !message.isStreaming && (
           <div className="w-full mb-1.5">
-            <div className="bg-slate-700 border border-slate-600 rounded-lg shadow-md">
+            <div className="bg-slate-800/50 border border-slate-700/80 rounded-lg shadow-md">
               <button
                 onClick={() => setIsThoughtsExpanded(!isThoughtsExpanded)}
-                className="w-full flex items-center justify-between p-2.5 text-sm text-slate-300 hover:bg-slate-600 rounded-t-lg focus:outline-none"
+                className="w-full flex items-center justify-between p-2.5 text-sm text-slate-300 transition-colors hover:bg-slate-700/70 rounded-t-lg focus:outline-none"
                 aria-expanded={isThoughtsExpanded}
                 aria-controls={`thoughts-content-${message.id}`}
               >
@@ -574,7 +636,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                 </div>
               </button>
               {isThoughtsExpanded && (
-                <div id={`thoughts-content-${message.id}`} className="p-3 border-t border-slate-600 markdown-content text-xs text-slate-300 max-h-48 overflow-y-auto">
+                <div id={`thoughts-content-${message.id}`} className="p-3 border-t border-slate-700/80 markdown-content text-xs text-slate-300 max-h-48 overflow-y-auto">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
                     {extractedThoughts}
                   </ReactMarkdown>
@@ -585,7 +647,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
         )}
 
         {(isUser || isModel || isError) && (
-            <div className={`px-4 py-3 rounded-lg shadow-md ${bubbleClasses} relative w-full mt-1`}>
+            <div className={`px-4 py-3 rounded-lg ${bubbleClasses} relative w-full mt-1`}>
                 <>
                 {isModel && message.characterName && (
                     <div className="flex items-center mb-1.5">
@@ -606,7 +668,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                  {isLongTextContent && (
                     <button
                         onClick={() => setIsContentExpanded(!isContentExpanded)}
-                        className="text-blue-300 hover:text-blue-200 text-xs mt-1.5 focus:outline-none flex items-center"
+                        className="text-blue-300 hover:text-blue-200 text-xs mt-1.5 focus:outline-none flex items-center transition-all hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]"
                         aria-expanded={isContentExpanded}
                     >
                         {isContentExpanded ? "Show less" : "Show more"}
@@ -621,7 +683,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                 {message.attachments && message.attachments.length > 0 && (
                     <div className={`mt-2 grid gap-2 ${message.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {message.attachments.map(attachment => (
-                        <div key={attachment.id} className="relative group/attachment border border-gray-500/50 rounded-md overflow-hidden">
+                        <div key={attachment.id} className="relative group/attachment border border-white/10 rounded-md overflow-hidden bg-black/20">
                         {attachment.mimeType.startsWith('image/') && attachment.type === 'image' && attachment.mimeType !== 'application/pdf' ? (
                             <img 
                                 src={attachment.dataUrl} 
@@ -636,7 +698,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                 className="max-w-full max-h-60 object-contain rounded-md"
                             />
                         ) : ( 
-                            <div className="p-2 h-full flex flex-col items-center justify-center bg-gray-600 hover:bg-gray-500 cursor-pointer" onClick={() => attachment.dataUrl && window.open(attachment.dataUrl, '_blank')}>
+                            <div className="p-2 h-full flex flex-col items-center justify-center bg-transparent transition-colors hover:bg-white/5 cursor-pointer" onClick={() => attachment.dataUrl && window.open(attachment.dataUrl, '_blank')}>
                                 <DocumentIcon className="w-8 h-8 mb-1 text-gray-300" />
                                 <span className="text-xs text-gray-300 text-center break-all px-1">{attachment.name}</span>
                             </div>
@@ -645,9 +707,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleDownloadAttachmentLocal(attachment); }}
                                 title={`Download ${attachment.name}`}
-                                className="p-1 bg-black bg-opacity-40 text-white rounded-full hover:bg-opacity-60"
+                                className="p-1 bg-black bg-opacity-40 text-white rounded-full transition-all hover:shadow-[0_0_8px_1px_rgba(255,255,255,0.2)]"
                                 aria-label={`Download ${attachment.name}`}
-                                disabled={!attachment.dataUrl}
+                                disabled={!attachment.dataUrl || isSelectionModeActive}
                             >
                                 <ArrowDownTrayIcon className="w-3 h-3" />
                             </button>
@@ -655,7 +717,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                 <RefreshAttachmentButton
                                     attachment={attachment}
                                     onReUpload={() => chat.handleReUploadAttachment(chat.currentChatSession!.id, message.id, attachment.id)}
-                                    disabled={message.isStreaming || isAnyAudioOperationActiveForMessage}
+                                    disabled={message.isStreaming || isAnyAudioOperationActiveForMessage || isSelectionModeActive}
                                 />
                             )}
                         </div>
@@ -669,7 +731,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                     </div>
                 )}
                 {groundingChunks && groundingChunks.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-gray-500 border-opacity-50">
+                    <div className="mt-3 pt-2 border-t border-white/10">
                     <h4 className="text-xs font-semibold mb-1 opacity-80 flex items-center">
                         <MagnifyingGlassIcon className="w-3.5 h-3.5 mr-1.5 opacity-70" />
                         Sources:
@@ -728,7 +790,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                             {hasAnyCachedAudio && !isAnyAudioOperationActiveForMessage && (
                                 <ResetAudioCacheButton
                                     onClick={handleResetCacheClick}
-                                    disabled={isAnyAudioOperationActiveForMessage} 
+                                    disabled={isAnyAudioOperationActiveForMessage || isSelectionModeActive} 
                                     title="Reset Audio Cache"
                                 />
                             )}
@@ -738,20 +800,21 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                         ref={optionsButtonRef}
                         id={`options-menu-button-${message.id}`}
                         onClick={(e) => {
+                            if (isSelectionModeActive) return;
                             e.stopPropagation();
                             setIsOptionsMenuOpen(prev => !prev);
                         }}
                         title="Options"
                         aria-haspopup="true"
                         aria-expanded={isOptionsMenuOpen}
-                        className="p-1.5 text-gray-300 hover:text-white rounded-md bg-black bg-opacity-20 hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`p-1.5 text-gray-300 rounded-md bg-black bg-opacity-20 transition-shadow focus:outline-none focus:ring-2 ring-[var(--aurora-accent-primary)] hover:text-white hover:shadow-[0_0_8px_1px_rgba(255,255,255,0.2)] ${isSelectionModeActive ? 'hidden' : ''}`}
                     >
                         <EllipsisVerticalIcon className="w-4 h-4" />
                     </button>
                     {isOptionsMenuOpen && (
                         <div
                             ref={dropdownRef}
-                            className={`absolute ${dynamicDropdownClass} top-full mt-1.5 w-auto bg-gray-700 rounded-md shadow-lg z-30 p-1 flex space-x-1 ring-1 ring-black ring-opacity-5 focus:outline-none`}
+                            className={`absolute aurora-panel ${dynamicDropdownClass} top-full mt-1.5 w-auto rounded-md shadow-lg z-30 p-1 flex space-x-1 focus:outline-none`}
                             role="menu"
                             aria-orientation="horizontal"
                             aria-labelledby={`options-menu-button-${message.id}`}
@@ -761,6 +824,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                 onClick={handleReadModeClick}
                                 icon={BookOpenIcon}
                                 label="Read Mode"
+                                hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
                                 />
                             )}
                              <DropdownMenuItem
@@ -768,11 +832,13 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                 icon={ChatBubblePlusIcon}
                                 label="Insert Empty Bubble After"
                                 disabled={isAnyAudioOperationActiveForMessage || chat.isLoading}
+                                hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
                             />
                             <DropdownMenuItem
                                 onClick={handleCopyMessageClick}
                                 icon={ClipboardDocumentListIcon}
                                 label="Copy Text"
+                                hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
                             />
                             {audio.handleDownloadAudio && message.content.trim() && !isError && allTtsPartsCached && (
                                 <DropdownMenuItem
@@ -780,6 +846,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                     icon={ArrowDownTrayIcon} 
                                     label={"Download Audio"}
                                     disabled={isAnyAudioOperationActiveForMessage} 
+                                    hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
                                 />
                             )}
                             {!isError && (isUser || isModel) && (
@@ -788,6 +855,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                     icon={PencilIcon}
                                     label="Edit Text"
                                     disabled={isAnyAudioOperationActiveForMessage}
+                                    hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(90,98,245,0.7)]"
                                 />
                             )}
                             {!isError && isModel && !message.characterName && ( 
@@ -796,6 +864,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                     icon={ArrowPathIcon}
                                     label="Regenerate AI Message"
                                     disabled={isAnyAudioOperationActiveForMessage}
+                                    hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(90,98,245,0.7)]"
                                 />
                             )}
                             {isUser && canRegenerateFollowingAI && !message.characterName && (
@@ -804,20 +873,23 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
                                     icon={ArrowPathIcon}
                                     label="Regenerate AI Message"
                                     disabled={isAnyAudioOperationActiveForMessage}
+                                    hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(90,98,245,0.7)]"
                                 />
                             )}
                              <DropdownMenuItem
                                 onClick={() => { chat.handleDeleteSingleMessageOnly(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                 icon={XCircleIcon} 
                                 label="Delete This Message"
-                                className="text-red-400 hover:bg-red-600 hover:text-white"
+                                className="text-red-400"
+                                hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(239,68,68,0.7)]"
                                 disabled={isAnyAudioOperationActiveForMessage} 
                             />
                             <DropdownMenuItem
                                 onClick={() => { ui.requestDeleteConfirmation(chat.currentChatSession!.id, message.id); setIsOptionsMenuOpen(false); }}
                                 icon={TrashIcon} 
                                 label="Delete Message & History"
-                                className="text-red-400 hover:bg-red-600 hover:text-white"
+                                className="text-red-400"
+                                hoverGlowClassName="hover:shadow-[0_0_10px_1px_rgba(239,68,68,0.7)]"
                                 disabled={isAnyAudioOperationActiveForMessage} 
                             />
                         </div>
@@ -827,10 +899,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ // Renamed for memoi
             </div>
         )}
       </div>
+      )}
+       {isUser && isSelectionModeActive && <Checkbox />}
     </div>
   );
 };
 
-const MessageItem = memo(MessageItemComponent); // Apply memo
+const MessageItem = memo(MessageItemComponent); 
 
 export default MessageItem;

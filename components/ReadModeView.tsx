@@ -1,3 +1,5 @@
+
+
 import React, { useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,15 +25,15 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
 
   if (inline) {
     return (
-      <code className="bg-gray-700 text-red-300 rounded px-1 py-0.5 font-mono text-sm">
+      <code className="bg-black/30 text-indigo-300 rounded px-1 py-0.5 font-mono text-sm border border-white/10">
         {children}
       </code>
     );
   }
 
   return (
-    <div className="relative my-2 rounded-md overflow-hidden border border-gray-700">
-      <div className="flex justify-between items-center px-4 py-1.5 bg-gray-700">
+    <div className="relative my-2 rounded-md overflow-hidden border border-white/10 bg-[#0A0910]">
+      <div className="flex justify-between items-center px-4 py-1.5 bg-black/20">
         <span className="text-xs text-gray-300 font-mono">{lang || 'code'}</span>
       </div>
       {lang ? (
@@ -39,12 +41,12 @@ const CodeBlock: React.FC<React.PropsWithChildren<{ inline?: boolean; className?
           style={atomOneDark}
           language={lang}
           PreTag="div"
-          customStyle={{ margin: 0, padding: '1rem', fontSize: '0.9em' }}
+          customStyle={{ margin: 0, padding: '1rem', fontSize: '0.9em', backgroundColor: 'transparent' }}
         >
           {codeString}
         </SyntaxHighlighter>
       ) : (
-        <pre className="bg-gray-800 text-gray-200 p-4 text-sm font-mono overflow-x-auto m-0">
+        <pre className="bg-transparent text-gray-200 p-4 text-sm font-mono overflow-x-auto m-0">
           <code>{codeString}</code>
         </pre>
       )}
@@ -79,7 +81,7 @@ const ReadModeView: React.FC<ReadModeViewProps> = ({ isOpen, content, onClose })
 
   return (
     <div
-      className="fixed inset-0 bg-gray-900 bg-opacity-90 backdrop-blur-md z-40 flex flex-col p-4 sm:p-8 md:p-12 pt-24"
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 flex flex-col p-4 sm:p-8 md:p-12 pt-24"
       onClick={onClose} // Close on clicking the background
       role="dialog"
       aria-modal="true"
@@ -89,7 +91,7 @@ const ReadModeView: React.FC<ReadModeViewProps> = ({ isOpen, content, onClose })
           e.stopPropagation(); // Prevent background click when clicking the button
           onClose();
         }}
-        className="absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700 transition-colors z-10"
+        className="absolute top-4 right-4 text-gray-400 p-2 rounded-full z-10 transition-shadow hover:text-white hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]"
         aria-label="Close Read Mode"
       >
         <CloseIcon className="w-7 h-7" />
@@ -99,7 +101,7 @@ const ReadModeView: React.FC<ReadModeViewProps> = ({ isOpen, content, onClose })
         className="flex-grow w-full max-w-4xl mx-auto overflow-y-auto hide-scrollbar markdown-content"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the content area
       >
-        <div className="bg-gray-800 p-6 sm:p-8 rounded-lg ring-1 ring-gray-700">
+        <div className="aurora-panel p-6 sm:p-8 rounded-lg">
              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
                 {content}
             </ReactMarkdown>

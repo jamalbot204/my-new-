@@ -5,28 +5,25 @@ import { GoogleGenAI, Chat, GenerateContentResponse, Part, SafetySetting as Gemi
 import { ChatMessage, ChatMessageRole, GeminiSettings, GeminiHistoryEntry, SafetySetting, HarmCategory, HarmBlockThreshold, GroundingChunk, Attachment, ApiRequestLog, ApiRequestPayload, AICharacter, LoggedGeminiGenerationConfig, FileUploadResult, GeminiFileResource, AttachmentUploadState } from '../types';
 import { MODELS_SENDING_THINKING_CONFIG_API } from "../constants"; // Updated import
 
-
-const API_KEY_ENV = process.env.API_KEY;
-
-const getApiKey = (): string | null => {
-  if (!API_KEY_ENV) {
-    console.error("API_KEY for Gemini is not set or accessible in environment variables.");
-    return null;
+// Custom error for quota issues
+export class QuotaExceededError extends Error {
+  constructor(message?: string) {
+    super(message);
+    this.name = 'QuotaExceededError';
   }
-  return API_KEY_ENV;
 }
 
-let aiInstance: GoogleGenAI | null = null;
-const getAiInstance = (): GoogleGenAI | null => {
-    const apiKey = getApiKey();
-    if (!apiKey) return null;
-    if (!aiInstance) {
-        aiInstance = new GoogleGenAI({ apiKey });
+
+const aiInstancesCache = new Map<string, GoogleGenAI>();
+
+function createAiInstance(apiKey: string): GoogleGenAI {
+    if (aiInstancesCache.has(apiKey)) {
+        return aiInstancesCache.get(apiKey)!;
     }
-    return aiInstance;
+    const newInstance = new GoogleGenAI({ apiKey });
+    aiInstancesCache.set(apiKey, newInstance);
+    return newInstance;
 }
-
-const activeChatInstances = new Map<string, Chat>();
 
 // NOTE ON ATTACHMENT HANDLING FOR API:
 // When constructing 'parts' for the Gemini API (e.g., in mapMessagesToGeminiHistoryInternal):
@@ -287,6 +284,7 @@ async function pollFileStateUntilActive(
 
 
 export async function uploadFileViaApi(
+  apiKey: string,
   fileToUpload: globalThis.File, // Use the global File type
   logApiRequestCallback: LogApiRequestCallback,
   onStateChange?: (state: AttachmentUploadState, fileApiName?: string, message?: string, progress?: number) => void,
@@ -295,12 +293,12 @@ export async function uploadFileViaApi(
   // IMPORTANT: This function sends the raw 'fileToUpload' to the Gemini File API.
   // Any client-side generation of 'dataUrl' or 'base64Data' (e.g., in ChatView.tsx)
   // is for UI preview purposes ONLY and is NOT used by this upload function for API communication.
-  const ai = getAiInstance();
-  if (!ai) {
+  if (!apiKey) {
     const errorMsg = "API Key not configured for File API.";
     onStateChange?.('error_cloud_upload', undefined, errorMsg);
     return { mimeType: fileToUpload.type, originalFileName: fileToUpload.name, size: fileToUpload.size, error: errorMsg };
   }
+  const ai = createAiInstance(apiKey);
 
   if (signal?.aborted) {
     const errorMsg = "Upload cancelled before starting.";
@@ -330,7 +328,7 @@ export async function uploadFileViaApi(
     if (signal?.aborted) { // Check immediately after upload attempt
       if (initialFileResource.name) { // If upload succeeded enough to get a name, attempt deletion
          try {
-            await deleteFileViaApi(initialFileResource.name, logApiRequestCallback);
+            await deleteFileViaApi(apiKey, initialFileResource.name, logApiRequestCallback);
          } catch (delErr) { console.warn("Failed to delete file after aborting during initial upload phase:", delErr); }
       }
       throw new DOMException('Aborted by user', 'AbortError');
@@ -385,13 +383,12 @@ export async function uploadFileViaApi(
 }
 
 export async function deleteFileViaApi(
+  apiKey: string,
   fileApiName: string,
   logApiRequestCallback: LogApiRequestCallback
 ): Promise<void> {
-  const ai = getAiInstance();
-  if (!ai) {
-    throw new Error("API Key not configured for File API.");
-  }
+  if (!apiKey) throw new Error("API Key not configured for File API.");
+  const ai = createAiInstance(apiKey);
 
   try {
     if (logApiRequestCallback) {
@@ -424,10 +421,11 @@ export function clearCachedChat(sessionId: string, model: string, settings: Gemi
     ? `${sessionId}_char_${characterIdForCacheKey}-${model}-${JSON.stringify(sortedSettings)}`
     : `${sessionId}-${model}-${JSON.stringify(sortedSettings)}`;
   
-  if (activeChatInstances.has(cacheKeyForSDKInstance)) {
-    activeChatInstances.delete(cacheKeyForSDKInstance);
-     console.log(`[GeminiService] Cleared cached chat instance for key: ${cacheKeyForSDKInstance}`);
-  }
+  // As we no longer have a single 'activeChatInstances' map, this function is now a no-op
+  // but is kept for API compatibility. The caching of AI instances is handled by createAiInstance.
+  // We could clear the cache here if needed:
+  // aiInstancesCache.clear(); // This would clear all cached keys.
+  // console.log(`[GeminiService] Cleared cached chat instance for key: ${cacheKeyForSDKInstance}`);
 }
 
 export interface FullResponseData {
@@ -443,6 +441,13 @@ export interface UserMessageInput {
 export type LogApiRequestCallback = (logDetails: Omit<ApiRequestLog, 'id' | 'timestamp'>) => void;
 
 function formatGeminiError(error: any, requestPayloadForContext?: ApiRequestPayload): string {
+  // Check for quota error first
+  const errorMessage = (error.message || "").toLowerCase();
+  const httpStatus = error.httpStatus || (error.response ? error.response.status : undefined);
+  if (httpStatus === 429 || errorMessage.includes("quota")) {
+      throw new QuotaExceededError(error.message || "Quota exceeded. Please check your API key limits.");
+  }
+  
   // Log the full error object structure for developers, in case it changes or has more info
   // This could be very verbose.
   // console.debug("Full Gemini API Error Object:", JSON.stringify(error, null, 2));
@@ -533,6 +538,7 @@ function formatGeminiError(error: any, requestPayloadForContext?: ApiRequestPayl
 
 
 export async function getFullChatResponse( 
+  apiKey: string,
   sessionId: string, 
   userMessageInput: UserMessageInput,
   model: string,
@@ -546,12 +552,12 @@ export async function getFullChatResponse(
   settingsOverride?: Partial<GeminiSettings & { _characterIdForAPICall?: string }>, 
   allAiCharactersInSession?: AICharacter[]
 ): Promise<void> {
-  const ai = getAiInstance();
-  if (!ai) {
-    onError("API Key is not configured. Please set the API_KEY environment variable.", false);
+  if (!apiKey) {
+    onError("API Key is not configured. Please add a key in Settings.", false);
     onComplete();
     return;
   }
+  const ai = createAiInstance(apiKey);
 
   if (signal?.aborted) {
     onError("Request aborted by user before sending.", true);
@@ -679,7 +685,8 @@ export async function getFullChatResponse(
         payload: {
           model: model,
           history: historyForChatInitialization, 
-          config: configForChatCreate as Partial<LoggedGeminiGenerationConfig> 
+          config: configForChatCreate as Partial<LoggedGeminiGenerationConfig>,
+          apiKeyUsed: `...${apiKey.slice(-4)}`
         },
         characterName: characterNameForLogging,
         apiSessionId: cacheKeyForSDKInstance 
@@ -712,7 +719,8 @@ export async function getFullChatResponse(
   const requestPayloadForSendMessage: ApiRequestPayload = {
       model: model,
       contents: [{ role: 'user', parts: JSON.parse(JSON.stringify(messageParts)) }],
-      config: configForChatCreate as Partial<LoggedGeminiGenerationConfig> // Config is for the chat instance
+      config: configForChatCreate as Partial<LoggedGeminiGenerationConfig>, // Config is for the chat instance
+      apiKeyUsed: `...${apiKey.slice(-4)}`
   };
 
   try {
@@ -751,6 +759,7 @@ export async function getFullChatResponse(
 }
 
 export async function generateMimicUserResponse(
+    apiKey: string,
     modelId: string,
     standardChatHistory: GeminiHistoryEntry[], 
     userPersonaInstructionText: string, 
@@ -759,10 +768,8 @@ export async function generateMimicUserResponse(
     signal?: AbortSignal,
     settingsOverride?: Partial<GeminiSettings> 
 ): Promise<string> {
-    const ai = getAiInstance();
-    if (!ai) {
-        throw new Error("API Key is not configured.");
-    }
+    if (!apiKey) throw new Error("API Key is not configured.");
+    const ai = createAiInstance(apiKey);
 
     if (signal?.aborted) {
         throw new Error("Request aborted by user before sending.");
@@ -800,7 +807,8 @@ export async function generateMimicUserResponse(
     const requestPayloadForGenerateContent: ApiRequestPayload = {
         model: modelId,
         contents: requestContents,
-        config: generationConfigForCall as Partial<LoggedGeminiGenerationConfig>
+        config: generationConfigForCall as Partial<LoggedGeminiGenerationConfig>,
+        apiKeyUsed: `...${apiKey.slice(-4)}`
     };
     
     try {
@@ -831,4 +839,3 @@ export async function generateMimicUserResponse(
         throw new Error(formattedError);
     }
 }
-

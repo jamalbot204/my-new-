@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { CloseIcon } from './Icons';
 
@@ -25,26 +26,26 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const confirmButtonBaseClass = "px-4 py-2.5 text-sm font-medium rounded-md transition-colors flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800";
+  const confirmButtonBaseClass = "px-4 py-2.5 text-sm font-medium rounded-md transition-shadow flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black";
   const confirmButtonClass = isDestructive
-    ? `${confirmButtonBaseClass} text-white bg-red-600 hover:bg-red-700 focus:ring-red-500`
-    : `${confirmButtonBaseClass} text-white bg-blue-600 hover:bg-blue-700 focus:ring-blue-500`;
-  const cancelButtonClass = `${confirmButtonBaseClass} text-gray-300 bg-gray-600 hover:bg-gray-500 focus:ring-gray-500`;
+    ? `${confirmButtonBaseClass} text-white bg-red-600/80 focus:ring-red-500 hover:shadow-[0_0_12px_2px_rgba(239,68,68,0.6)]`
+    : `${confirmButtonBaseClass} text-white bg-[var(--aurora-accent-primary)] focus:ring-blue-500 hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]`;
+  const cancelButtonClass = `${confirmButtonBaseClass} text-gray-300 bg-white/5 focus:ring-gray-500 hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]`;
 
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4 backdrop-blur-sm"
+      className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirmation-modal-title"
     >
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-md max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
+      <div className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-md max-h-[90vh] flex flex-col text-gray-200">
         <div className="flex justify-between items-center mb-4">
           <h2 id="confirmation-modal-title" className="text-xl font-semibold text-gray-100">{title}</h2>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
+            className="text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
             aria-label="Close confirmation"
           >
             <CloseIcon className="w-6 h-6" />

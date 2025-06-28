@@ -1,7 +1,3 @@
-
-
-
-
 import { useState, useCallback, useRef } from 'react';
 import { Attachment, AttachmentUploadState, LogApiRequestCallback } from '../types';
 import { uploadFileViaApi, deleteFileViaApi } from '../services/geminiService';
@@ -9,11 +5,13 @@ import { SUPPORTED_IMAGE_MIME_TYPES, SUPPORTED_VIDEO_MIME_TYPES } from '../const
 import { getDisplayFileType } from '../services/utils';
 
 interface UseAttachmentHandlerProps {
+  apiKey: string;
   logApiRequestCallback: LogApiRequestCallback;
   isInfoInputModeActive: boolean;
 }
 
 export function useAttachmentHandler({
+  apiKey,
   logApiRequestCallback,
   isInfoInputModeActive,
 }: UseAttachmentHandlerProps) {
@@ -38,6 +36,7 @@ export function useAttachmentHandler({
 
     try {
       const uploadResult = await uploadFileViaApi(
+        apiKey,
         file,
         logApiRequestCallback,
         (state, fileApiNameFromCb, messageFromCb, progressFromCb) => {
@@ -105,7 +104,7 @@ export function useAttachmentHandler({
             activeUploadControllersRef.current.delete(attachmentId);
         }
     }
-  }, [logApiRequestCallback, updateAttachmentState]);
+  }, [apiKey, logApiRequestCallback, updateAttachmentState]);
 
   const handleFileSelection = useCallback((files: FileList | null) => {
     if (!files || isInfoInputModeActive) return;
@@ -207,7 +206,7 @@ export function useAttachmentHandler({
            attachmentToRemove.error // even if errored, if it has a fileApiName, try to delete
           )
       ) {
-        deleteFileViaApi(attachmentToRemove.fileApiName, logApiRequestCallback)
+        deleteFileViaApi(apiKey, attachmentToRemove.fileApiName, logApiRequestCallback)
           .then(() => {
             console.log(`Successfully deleted orphaned file ${attachmentToRemove.fileApiName} from cloud.`);
           })
@@ -218,7 +217,7 @@ export function useAttachmentHandler({
       }
     }
     setSelectedFiles(prev => prev.filter(file => file.id !== id));
-  }, [selectedFiles, logApiRequestCallback]);
+  }, [selectedFiles, apiKey, logApiRequestCallback]);
 
   const getValidAttachmentsToSend = useCallback((): Attachment[] => {
     return selectedFiles.filter(f => 

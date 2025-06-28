@@ -19,6 +19,7 @@ import ExportConfigurationModal from './ExportConfigurationModal';
 import ReadModeView from './ReadModeView';
 import FilenameInputModal from './FilenameInputModal'; // Import the new modal
 import ChatAttachmentsModal from './ChatAttachmentsModal'; // Import the new modal
+import MultiSelectActionBar from './MultiSelectActionBar'; // Import the new component
 
 const AppContent: React.FC = () => {
   const chat = useChatContext();
@@ -56,7 +57,7 @@ const AppContent: React.FC = () => {
   const isAudioBarVisible = !!(audio.audioPlayerState.currentMessageId || audio.audioPlayerState.isLoading || audio.audioPlayerState.isPlaying || audio.audioPlayerState.currentPlayingText);
   
   if (chat.isLoadingData) {
-    return <div className="flex justify-center items-center h-screen bg-gray-900 text-white">Loading chat sessions...</div>;
+    return <div className="flex justify-center items-center h-screen bg-transparent text-white">Loading chat sessions...</div>;
   }
 
   const handleGoToAttachmentInChat = (messageId: string) => {
@@ -68,7 +69,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen antialiased text-gray-200 bg-gray-900 overflow-hidden">
+    <div className="flex h-screen antialiased text-[var(--aurora-text-primary)] bg-transparent overflow-hidden">
       <div className={`fixed inset-y-0 left-0 z-[60] transform transition-transform duration-300 ease-in-out ${ui.isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-72`}>
         <Sidebar />
       </div>
@@ -105,6 +106,7 @@ const AppContent: React.FC = () => {
         <CharacterManagementModal />
         <CharacterContextualInfoModal />
         <DebugTerminalPanel />
+        {ui.isSelectionModeActive && <MultiSelectActionBar />}
         <ChatAttachmentsModal
             isOpen={ui.isChatAttachmentsModalOpen}
             attachments={ui.attachmentsForModal}

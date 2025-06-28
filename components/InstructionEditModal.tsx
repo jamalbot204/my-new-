@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon } from './Icons';
 import useAutoResizeTextarea from '../hooks/useAutoResizeTextarea'; // Import the new hook
@@ -47,17 +48,17 @@ const InstructionEditModal: React.FC<InstructionEditModalProps> = ({
 
   return (
     <div 
-        className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby="instruction-edit-modal-title"
     >
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
+      <div className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col text-gray-200">
         <div className="flex justify-between items-center mb-4">
           <h2 id="instruction-edit-modal-title" className="text-xl font-semibold text-gray-100">{title}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
+            className="text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
             aria-label={`Close ${title} editor`}
           >
             <CloseIcon className="w-6 h-6" />
@@ -68,7 +69,7 @@ const InstructionEditModal: React.FC<InstructionEditModalProps> = ({
           ref={textareaRef}
           value={editText}
           onChange={handleTextChange}
-          className="w-full flex-grow p-3 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-none hide-scrollbar text-sm sm:text-base leading-relaxed"
+          className="w-full flex-grow p-3 aurora-textarea resize-none hide-scrollbar text-sm sm:text-base leading-relaxed"
           placeholder="Enter instruction..."
           style={{ minHeight: '300px' }} 
           aria-label="Instruction content editor"
@@ -78,14 +79,14 @@ const InstructionEditModal: React.FC<InstructionEditModalProps> = ({
           <button
             onClick={onClose}
             type="button"
-            className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]"
           >
             Cancel
           </button>
           <button
             onClick={handleApplyClick}
             type="button"
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-white bg-[var(--aurora-accent-primary)] rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]"
           >
             Apply
           </button>

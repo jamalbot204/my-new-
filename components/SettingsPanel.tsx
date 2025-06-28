@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
@@ -9,6 +10,7 @@ import SafetySettingsModal from './SafetySettingsModal';
 import InstructionEditModal from './InstructionEditModal';
 import TtsSettingsModal from './TtsSettingsModal';
 import ThinkingBudgetControl from './ThinkingBudgetControl'; // Import new component
+import ApiKeyManager from './ApiKeyManager'; // Import the new API Key Manager
 import * as dbService from '../services/dbService';
 import { METADATA_KEYS } from '../services/dbService';
 
@@ -154,7 +156,7 @@ const SettingsPanel: React.FC = () => {
     }> = ({ label, value, onClick, placeholder }) => (
         <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
-            <button type="button" onClick={onClick} className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200 text-left flex justify-between items-center hover:bg-gray-600">
+            <button type="button" onClick={onClick} className="w-full p-2.5 aurora-input text-left flex justify-between items-center transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]">
                 <span className={`truncate ${value ? 'text-gray-200' : 'text-gray-400'}`}>{value ? (value.length > 60 ? value.substring(0, 60) + "..." : value) : placeholder}</span>
                 <PencilIcon className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
             </button>
@@ -167,14 +169,16 @@ const SettingsPanel: React.FC = () => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black bg-opacity-70 z-40 flex justify-center items-center p-4 backdrop-blur-sm">
-                <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto text-gray-200 relative ring-1 ring-gray-700">
-                    <button onClick={ui.closeSettingsPanel} className="absolute top-3 right-3 text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700" aria-label="Close settings"><CloseIcon className="w-6 h-6" /></button>
+            <div className="fixed inset-0 bg-black/60 z-40 flex justify-center items-center p-4 backdrop-blur-md">
+                <div className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto text-gray-200 relative">
+                    <button onClick={ui.closeSettingsPanel} className="absolute top-3 right-3 text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]" aria-label="Close settings"><CloseIcon className="w-6 h-6" /></button>
                     <h2 className="text-2xl font-semibold mb-6 text-gray-100">Settings</h2>
                     <div className="space-y-6">
+                        <ApiKeyManager />
+
                         <div>
                             <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-1">Model</label>
-                            <select id="model" name="model" className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200" value={localModel} onChange={handleInputChange}>
+                            <select id="model" name="model" className="w-full p-2.5 aurora-select" value={localModel} onChange={handleInputChange}>
                                 {MODEL_DEFINITIONS.map(model => (<option key={model.id} value={model.id}>{model.name}</option>))}
                             </select>
                         </div>
@@ -192,21 +196,21 @@ const SettingsPanel: React.FC = () => {
                         <div className="pt-2">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center"><SpeakerWaveIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Text-to-Speech (TTS) settings</h3></div>
-                                <button onClick={ui.openTtsSettingsModal} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="Configure Text-to-Speech settings">Configure <PencilIcon className="w-3 h-3 ml-1" /></button>
+                                <button onClick={ui.openTtsSettingsModal} className="text-sm text-blue-400 flex items-center transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]" aria-label="Configure Text-to-Speech settings">Configure <PencilIcon className="w-3 h-3 ml-1" /></button>
                             </div>
                             <p className="text-xs text-gray-400">Configure voice model and other TTS options.</p>
                         </div>
                         <div className="pt-2">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center"><ShieldCheckIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Safety settings</h3></div>
-                                <button onClick={() => setIsSafetyModalOpen(true)} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="Edit Safety settings">Edit <PencilIcon className="w-3 h-3 ml-1" /></button>
+                                <button onClick={() => setIsSafetyModalOpen(true)} className="text-sm text-blue-400 flex items-center transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]" aria-label="Edit Safety settings">Edit <PencilIcon className="w-3 h-3 ml-1" /></button>
                             </div>
                             <p className="text-xs text-gray-400">Adjust content filtering for harassment, hate speech, and other harmful content. These are overridden during 'Continue Flow' when AI mimics the user.</p>
                         </div>
                         <div className="pt-2">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center"><ExportBoxIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Export preferences</h3></div>
-                                <button onClick={handleCustomizeExportClick} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="Customize export data">Customize & Export <PencilIcon className="w-3 h-3 ml-1" /></button>
+                                <button onClick={handleCustomizeExportClick} className="text-sm text-blue-400 flex items-center transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]" aria-label="Customize export data">Customize & Export <PencilIcon className="w-3 h-3 ml-1" /></button>
                             </div>
                             <p className="text-xs text-gray-400">Choose chats and data to include when exporting.</p>
                         </div>
@@ -214,89 +218,89 @@ const SettingsPanel: React.FC = () => {
                         <div className="pt-2">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center"><FolderOpenIcon className="w-5 h-5 mr-2 text-gray-400" /><h3 className="text-md font-medium text-gray-300">Chat Attachments</h3></div>
-                                <button onClick={handleViewChatAttachments} className="text-sm text-blue-400 hover:text-blue-300 flex items-center" aria-label="View chat attachments">View <PencilIcon className="w-3 h-3 ml-1" /></button>
+                                <button onClick={handleViewChatAttachments} className="text-sm text-blue-400 flex items-center transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]" aria-label="View chat attachments">View <PencilIcon className="w-3 h-3 ml-1" /></button>
                             </div>
                             <p className="text-xs text-gray-400">View all attachments in the current chat session.</p>
                         </div>
                         <div>
                             <label htmlFor="temperature" className="block text-sm font-medium text-gray-300">Temperature: {localSettings.temperature?.toFixed(2) ?? DEFAULT_SETTINGS.temperature?.toFixed(2)}</label>
-                            <input type="range" id="temperature" name="temperature" min="0" max="2" step="0.01" className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-600" value={localSettings.temperature ?? DEFAULT_SETTINGS.temperature} onChange={handleRangeChange} />
+                            <input type="range" id="temperature" name="temperature" min="0" max="2" step="0.01" value={localSettings.temperature ?? DEFAULT_SETTINGS.temperature} onChange={handleRangeChange} />
                         </div>
                         <div>
                             <label htmlFor="topP" className="block text-sm font-medium text-gray-300">Top P: {localSettings.topP?.toFixed(2) ?? DEFAULT_SETTINGS.topP?.toFixed(2)}</label>
-                            <input type="range" id="topP" name="topP" min="0" max="1" step="0.01" className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-600" value={localSettings.topP ?? DEFAULT_SETTINGS.topP} onChange={handleRangeChange} />
+                            <input type="range" id="topP" name="topP" min="0" max="1" step="0.01" value={localSettings.topP ?? DEFAULT_SETTINGS.topP} onChange={handleRangeChange} />
                         </div>
                         <div>
                             <label htmlFor="topK" className="block text-sm font-medium text-gray-300 mb-1">Top K</label>
-                            <input type="number" id="topK" name="topK" min="1" className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder={`Default: ${DEFAULT_SETTINGS.topK}`} value={localSettings.topK ?? ''} onChange={handleNumericInputChange} />
+                            <input type="number" id="topK" name="topK" min="1" className="w-full p-2 aurora-input" placeholder={`Default: ${DEFAULT_SETTINGS.topK}`} value={localSettings.topK ?? ''} onChange={handleNumericInputChange} />
                         </div>
                         <div>
                             <label htmlFor="contextWindowMessages" className="block text-sm font-medium text-gray-300 mb-1">Context Window (Max Messages)</label>
-                            <input type="number" id="contextWindowMessages" name="contextWindowMessages" min="0" className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Default: All (0 or empty)" value={localSettings.contextWindowMessages ?? ''} onChange={handleNumericInputChange} />
+                            <input type="number" id="contextWindowMessages" name="contextWindowMessages" min="0" className="w-full p-2 aurora-input" placeholder="Default: All (0 or empty)" value={localSettings.contextWindowMessages ?? ''} onChange={handleNumericInputChange} />
                             <p className="text-xs text-gray-400 mt-1">Max number of recent messages sent as history. 0 or empty means all.</p>
                         </div>
                         <div>
                             <label htmlFor="maxInitialMessagesDisplayed" className="block text-sm font-medium text-gray-300 mb-1">Max Initial Messages Displayed</label>
-                            <input type="number" id="maxInitialMessagesDisplayed" name="maxInitialMessagesDisplayed" min="1" className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder={`Default: ${DEFAULT_SETTINGS.maxInitialMessagesDisplayed || INITIAL_MESSAGES_COUNT}`} value={localSettings.maxInitialMessagesDisplayed ?? ''} onChange={handleNumericInputChange} />
+                            <input type="number" id="maxInitialMessagesDisplayed" name="maxInitialMessagesDisplayed" min="1" className="w-full p-2 aurora-input" placeholder={`Default: ${DEFAULT_SETTINGS.maxInitialMessagesDisplayed || INITIAL_MESSAGES_COUNT}`} value={localSettings.maxInitialMessagesDisplayed ?? ''} onChange={handleNumericInputChange} />
                             <p className="text-xs text-gray-400 mt-1">Number of messages to show initially or when switching chats.</p>
                         </div>
-                        <div className="border-t border-gray-700 pt-4">
+                        <div className="border-t border-[var(--aurora-border)] pt-4">
                             <div className="flex items-center">
-                                <input id="aiSeesTimestamps" name="aiSeesTimestamps" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localSettings.aiSeesTimestamps ?? false} onChange={handleInputChange} />
+                                <input id="aiSeesTimestamps" name="aiSeesTimestamps" type="checkbox" className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black" checked={localSettings.aiSeesTimestamps ?? false} onChange={handleInputChange} />
                                 <label htmlFor="aiSeesTimestamps" className="ml-2 block text-sm text-gray-300">Include message timestamps for AI</label>
                             </div>
                             <p className="text-xs text-gray-400 mt-1 ml-6">If enabled, AI sees when each message was sent.</p>
                         </div>
                         <div>
                             <div className="flex items-center">
-                                <input id="useGoogleSearch" name="useGoogleSearch" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localSettings.useGoogleSearch ?? false} onChange={handleInputChange} />
+                                <input id="useGoogleSearch" name="useGoogleSearch" type="checkbox" className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black" checked={localSettings.useGoogleSearch ?? false} onChange={handleInputChange} />
                                 <label htmlFor="useGoogleSearch" className="ml-2 block text-sm text-gray-300 flex items-center"><MagnifyingGlassIcon className="w-4 h-4 mr-1.5 text-gray-400" />Use Google Search</label>
                             </div>
                             <p className="text-xs text-gray-400 mt-1 ml-6">If enabled, AI can use Google Search to inform responses. May increase response time.</p>
                         </div>
                         <div>
                             <label htmlFor="urlContext" className="block text-sm font-medium text-gray-300 mb-1 flex items-center"><LinkIcon className="w-4 h-4 mr-1.5 text-gray-400" />URL Context (Optional - One per line)</label>
-                            <textarea id="urlContext" name="urlContext" rows={3} className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., https://example.com/article1\nhttps://example.com/article2" value={(localSettings.urlContext || []).join('\n')} onChange={handleInputChange} />
+                            <textarea id="urlContext" name="urlContext" rows={3} className="w-full p-2 aurora-textarea" placeholder="e.g., https://example.com/article1\nhttps://example.com/article2" value={(localSettings.urlContext || []).join('\n')} onChange={handleInputChange} />
                             <p className="text-xs text-gray-400 mt-1">Provide URLs for the AI to consider as context. One URL per line.</p>
                         </div>
-                        <div className="border-t border-gray-700 pt-4">
+                        <div className="border-t border-[var(--aurora-border)] pt-4">
                             <h3 className="text-md font-medium text-gray-300 mb-2 flex items-center"><CalculatorIcon className="w-5 h-5 mr-2 text-gray-400" />Session Statistics</h3>
                             <p className="text-sm text-gray-300">Estimated Tokens (Words * 1.5): <span className="font-semibold text-blue-400">{estimatedTokens}</span></p>
                         </div>
-                        <div className="border-t border-gray-700 pt-4">
+                        <div className="border-t border-[var(--aurora-border)] pt-4">
                             <h3 className="text-md font-medium text-gray-300 mb-2">UI Customization</h3>
                             <div className="flex items-center">
-                                <input id="showAutoSendControls" name="showAutoSendControls" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localSettings.showAutoSendControls ?? false} onChange={handleInputChange} />
+                                <input id="showAutoSendControls" name="showAutoSendControls" type="checkbox" className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black" checked={localSettings.showAutoSendControls ?? false} onChange={handleInputChange} />
                                 <label htmlFor="showAutoSendControls" className="ml-2 block text-sm text-gray-300 flex items-center"><PlayIcon className="w-4 h-4 mr-1.5 text-gray-400" />Show Auto-Send Controls</label>
                             </div>
                             <div className="flex items-center mt-2">
-                                <input id="showReadModeButton" name="showReadModeButton" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localSettings.showReadModeButton ?? false} onChange={handleInputChange} />
+                                <input id="showReadModeButton" name="showReadModeButton" type="checkbox" className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black" checked={localSettings.showReadModeButton ?? false} onChange={handleInputChange} />
                                 <label htmlFor="showReadModeButton" className="ml-2 block text-sm text-gray-300 flex items-center"><BookOpenIcon className="w-4 h-4 mr-1.5 text-gray-400" />Show "Read Mode" Button</label>
                             </div>
                         </div>
-                        <div className="border-t border-gray-700 pt-4">
+                        <div className="border-t border-[var(--aurora-border)] pt-4">
                             <div className="flex items-center">
-                                <input id="debugApiRequests" name="debugApiRequests" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localSettings.debugApiRequests ?? false} onChange={handleInputChange} />
+                                <input id="debugApiRequests" name="debugApiRequests" type="checkbox" className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black" checked={localSettings.debugApiRequests ?? false} onChange={handleInputChange} />
                                 <label htmlFor="debugApiRequests" className="ml-2 block text-sm text-gray-300 flex items-center"><BugAntIcon className="w-4 h-4 mr-1.5 text-gray-400" />Enable API Request Logger</label>
                             </div>
                             {currentChatSession.settings.debugApiRequests && (
-                                <button onClick={() => { ui.openDebugTerminal(); ui.closeSettingsPanel(); }} disabled={!(currentChatSession.apiRequestLogs && currentChatSession.apiRequestLogs.length > 0) && !localSettings.debugApiRequests} className="mt-2 flex items-center px-3 py-1.5 text-xs font-medium text-orange-300 bg-orange-600 bg-opacity-30 rounded-md hover:bg-opacity-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="View API Request Logs for this session">
+                                <button onClick={() => { ui.openDebugTerminal(); ui.closeSettingsPanel(); }} disabled={!(currentChatSession.apiRequestLogs && currentChatSession.apiRequestLogs.length > 0) && !localSettings.debugApiRequests} className="mt-2 flex items-center px-3 py-1.5 text-xs font-medium text-orange-300 bg-orange-600 bg-opacity-30 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(249,115,22,0.6)] disabled:opacity-50 disabled:cursor-not-allowed" title="View API Request Logs for this session">
                                     <BugAntIcon className="w-4 h-4 mr-1.5" />
                                     {currentChatSession.apiRequestLogs && currentChatSession.apiRequestLogs.length > 0 ? 'View API Logs' : (localSettings.debugApiRequests ? 'View API Logs (None Yet)' : 'Enable logging to view logs')}
                                 </button>
                             )}
                         </div>
-                        <div className="border-t border-gray-700 pt-4">
+                        <div className="border-t border-[var(--aurora-border)] pt-4">
                             <h3 className="text-md font-medium text-gray-300 mb-2 flex items-center"><ArrowPathIcon className="w-5 h-5 mr-2 text-gray-400" />Cache Management</h3>
-                            <button onClick={handleClearChatCacheForCurrentSession} type="button" className="w-full px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2" title={currentChatSession.isCharacterModeActive && currentChatSession.aiCharacters && currentChatSession.aiCharacters.length > 0 ? "Clears cache for all characters in this chat." : "Clears the model's cache for this chat."}>
+                            <button onClick={handleClearChatCacheForCurrentSession} type="button" className="w-full px-4 py-2 text-sm font-medium text-white bg-orange-600/80 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(249,115,22,0.6)] flex items-center justify-center space-x-2" title={currentChatSession.isCharacterModeActive && currentChatSession.aiCharacters && currentChatSession.aiCharacters.length > 0 ? "Clears cache for all characters in this chat." : "Clears the model's cache for this chat."}>
                                 <ArrowPathIcon className="w-4 h-4" /><span>{currentChatSession.isCharacterModeActive && currentChatSession.aiCharacters && currentChatSession.aiCharacters.length > 0 ? 'Clear All Characters Cache' : 'Clear Model Cache'}</span>
                             </button>
                         </div>
                     </div>
                     <div className="mt-8 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
-                        <button onClick={resetToDefaults} type="button" className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors w-full sm:w-auto">Reset to Defaults</button>
-                        <button onClick={handleMakeDefaults} type="button" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors w-full sm:w-auto">Make Global Defaults</button>
-                        <button onClick={handleSubmit} type="button" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors w-full sm:w-auto">Apply Settings</button>
+                        <button onClick={resetToDefaults} type="button" className="px-4 py-2 text-sm font-medium text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)] w-full sm:w-auto">Reset to Defaults</button>
+                        <button onClick={handleMakeDefaults} type="button" className="px-4 py-2 text-sm font-medium text-white bg-green-600/80 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(34,197,94,0.6)] w-full sm:w-auto">Make Global Defaults</button>
+                        <button onClick={handleSubmit} type="button" className="px-4 py-2 text-sm font-medium text-white bg-[var(--aurora-accent-primary)] rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)] w-full sm:w-auto">Apply Settings</button>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
@@ -83,13 +84,13 @@ const TtsSettingsModal: React.FC = () => {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4 backdrop-blur-sm">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full sm:max-w-md max-h-[90vh] flex flex-col text-gray-200 ring-1 ring-gray-700">
+      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-md">
+        <div className="aurora-panel p-6 rounded-lg shadow-2xl w-full sm:max-w-md max-h-[90vh] flex flex-col text-gray-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-100">Text-to-Speech Settings</h2>
             <button
               onClick={closeTtsSettingsModal}
-              className="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700"
+              className="text-gray-400 p-1 rounded-full transition-shadow hover:text-gray-100 hover:shadow-[0_0_10px_1px_rgba(255,255,255,0.2)]"
               aria-label="Close TTS settings"
             >
               <CloseIcon className="w-6 h-6" />
@@ -99,13 +100,13 @@ const TtsSettingsModal: React.FC = () => {
           <div className="space-y-5 mb-6 overflow-y-auto flex-grow pr-1">
             <div>
               <label htmlFor="tts-model" className="block text-sm font-medium text-gray-300 mb-1">TTS Model</label>
-              <select id="tts-model" name="tts-model" className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200" value={localTtsSettings.model} onChange={handleModelChange}>
+              <select id="tts-model" name="tts-model" className="w-full p-2.5 aurora-select" value={localTtsSettings.model} onChange={handleModelChange}>
                 {TTS_MODELS.map(model => (<option key={model.id} value={model.id}>{model.name}</option>))}
               </select>
             </div>
             <div>
               <label htmlFor="tts-voice" className="block text-sm font-medium text-gray-300 mb-1">Voice</label>
-              <select id="tts-voice" name="tts-voice" className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200" value={localTtsSettings.voice} onChange={handleVoiceChange}>
+              <select id="tts-voice" name="tts-voice" className="w-full p-2.5 aurora-select" value={localTtsSettings.voice} onChange={handleVoiceChange}>
                 {TTS_VOICES.map(voice => (<option key={voice.id} value={voice.id}>{voice.name} ({voice.description})</option>))}
               </select>
               <p className="text-xs text-gray-400 mt-1">The availability of voices may vary by model and language.</p>
@@ -116,7 +117,7 @@ const TtsSettingsModal: React.FC = () => {
                 type="number" 
                 id="tts-max-words" 
                 name="tts-max-words" 
-                className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200" 
+                className="w-full p-2.5 aurora-input" 
                 value={localTtsSettings.maxWordsPerSegment ?? ''} 
                 onChange={handleMaxWordsChange} 
                 step="10" 
@@ -124,27 +125,27 @@ const TtsSettingsModal: React.FC = () => {
               />
               <p className="text-xs text-gray-400 mt-1">Defines max words per audio segment. Empty or invalid number for no split. Positive number to set limit.</p>
             </div>
-            <div className="border-t border-gray-700 pt-4">
+            <div className="border-t border-[var(--aurora-border)] pt-4">
               <label className="block text-sm font-medium text-gray-300 mb-1">System Instruction (for TTS Model)</label>
-              <button type="button" onClick={handleOpenInstructionModal} className="w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-200 text-left flex justify-between items-center hover:bg-gray-600">
+              <button type="button" onClick={handleOpenInstructionModal} className="w-full p-2.5 aurora-input text-left flex justify-between items-center transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]">
                 <span className={`truncate ${localTtsSettings.systemInstruction ? 'text-gray-200' : 'text-gray-400'}`} title={localTtsSettings.systemInstruction || systemInstructionPlaceholder}>{localTtsSettings.systemInstruction ? (localTtsSettings.systemInstruction.length > 40 ? localTtsSettings.systemInstruction.substring(0, 40) + "..." : localTtsSettings.systemInstruction) : systemInstructionPlaceholder}</span>
                 <PencilIcon className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
               </button>
               <p className="text-xs text-gray-400 mt-1">Provide guidance to the TTS model on tone, style, or persona. (Optional)</p>
             </div>
-            <div className="border-t border-gray-700 pt-4">
+            <div className="border-t border-[var(--aurora-border)] pt-4">
               <div className="flex items-center">
-                <input id="autoPlayNewMessages" name="autoPlayNewMessages" type="checkbox" className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800" checked={localTtsSettings.autoPlayNewMessages ?? false} onChange={handleAutoPlayChange} />
+                <input id="autoPlayNewMessages" name="autoPlayNewMessages" type="checkbox" className="h-4 w-4 text-blue-600 bg-black/30 border-white/20 rounded focus:ring-blue-500 focus:ring-offset-black" checked={localTtsSettings.autoPlayNewMessages ?? false} onChange={handleAutoPlayChange} />
                 <label htmlFor="autoPlayNewMessages" className="ml-2 block text-sm text-gray-300">Auto-Play New AI Messages</label>
               </div>
               <p className="text-xs text-gray-400 mt-1 ml-6">If enabled, new AI messages will automatically start playing after a short delay.</p>
             </div>
           </div>
           <div className="mt-auto flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
-            <button onClick={handleResetDefaults} type="button" className="px-4 py-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">Reset to Defaults</button>
+            <button onClick={handleResetDefaults} type="button" className="px-4 py-2 text-sm font-medium text-blue-400 transition-all hover:text-blue-300 hover:drop-shadow-[0_0_3px_rgba(147,197,253,0.8)]">Reset to Defaults</button>
             <div className="flex space-x-3">
-              <button onClick={closeTtsSettingsModal} type="button" className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 transition-colors w-full sm:w-auto">Cancel</button>
-              <button onClick={handleApplySettings} type="button" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors w-full sm:w-auto">Apply TTS Settings</button>
+              <button onClick={closeTtsSettingsModal} type="button" className="px-4 py-2 text-sm font-medium text-gray-300 bg-white/5 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)] w-full sm:w-auto">Cancel</button>
+              <button onClick={handleApplySettings} type="button" className="px-4 py-2 text-sm font-medium text-white bg-[var(--aurora-accent-primary)] rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)] w-full sm:w-auto">Apply TTS Settings</button>
             </div>
           </div>
         </div>

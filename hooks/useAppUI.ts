@@ -1,4 +1,5 @@
 
+
 import { useState, useEffect, useCallback } from 'react';
 import * as layoutService from '../services/layoutService'; // Adjusted path
 
@@ -20,6 +21,10 @@ export function useAppUI() {
 
   const [layoutDirection, setLayoutDirectionState] = useState<'ltr' | 'rtl'>(layoutService.getLayoutDirection());
   const [toastInfo, setToastInfo] = useState<ToastInfo | null>(null);
+
+  // New states for multi-select
+  const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     localStorage.setItem('geminiChatSidebarOpen', JSON.stringify(isSidebarOpen));
@@ -56,6 +61,36 @@ export function useAppUI() {
     layoutService.toggleLayoutDirection(); // This will trigger the event listener and update layoutDirectionState
   }, []);
 
+  const clearSelection = useCallback(() => {
+    setSelectedMessageIds(new Set());
+  }, []);
+
+  const toggleSelectionMode = useCallback(() => {
+    setIsSelectionModeActive(prev => {
+      const isNowActive = !prev;
+      if (!isNowActive) { // When turning off
+        clearSelection();
+      }
+      return isNowActive;
+    });
+  }, [clearSelection]);
+
+  const toggleMessageSelection = useCallback((messageId: string) => {
+    setSelectedMessageIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const selectAllVisible = useCallback((visibleMessageIds: string[]) => {
+      setSelectedMessageIds(new Set(visibleMessageIds));
+  }, []);
+
   return {
     isSidebarOpen,
     setIsSidebarOpen,
@@ -67,5 +102,13 @@ export function useAppUI() {
     closeSidebar,
     handleToggleSidebar,
     handleToggleLayoutDirection,
+
+    // Multi-select state and handlers
+    isSelectionModeActive,
+    selectedMessageIds,
+    toggleSelectionMode,
+    toggleMessageSelection,
+    clearSelection,
+    selectAllVisible,
   };
 }

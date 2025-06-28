@@ -1,17 +1,17 @@
-
-
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import { useUIContext } from '../contexts/UIContext';
 import { ChatMessage, ChatMessageRole, AICharacter } from '../types';
 import MessageItem from './MessageItem';
 import { LOAD_MORE_MESSAGES_COUNT } from '../constants';
-import { Bars3Icon, FlowRightIcon, StopIcon, PaperClipIcon, XCircleIcon, DocumentIcon, PlayCircleIcon, UsersIcon, PlusIcon, ArrowsUpDownIcon, CheckIcon, InfoIcon, CloudArrowUpIcon, ServerIcon, SendIcon } from './Icons';
+import { Bars3Icon, FlowRightIcon, StopIcon, PaperClipIcon, XCircleIcon, DocumentIcon, PlayCircleIcon, UsersIcon, PlusIcon, ArrowsUpDownIcon, CheckIcon, InfoIcon, CloudArrowUpIcon, ServerIcon, SendIcon, ClipboardDocumentCheckIcon } from './Icons';
 import AutoSendControls from './AutoSendControls';
 import ManualSaveButton from './ManualSaveButton';
 import { useAttachmentHandler } from '../hooks/useAttachmentHandler';
 import useAutoResizeTextarea from '../hooks/useAutoResizeTextarea';
 import { getModelDisplayName } from '../services/utils';
+import MultiSelectActionBar from './MultiSelectActionBar'; // Import the new action bar
+import { useApiKeyContext } from '../contexts/ApiKeyContext';
 
 interface ChatViewProps {
     onEnterReadMode: (content: string) => void;
@@ -26,6 +26,7 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
 }, ref) => {
     const chat = useChatContext();
     const ui = useUIContext();
+    const { activeApiKey } = useApiKeyContext();
 
     const [inputMessage, setInputMessage] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +49,8 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     const [isInfoInputModeActive, setIsInfoInputModeActive] = useState(false);
 
     const attachmentHandler = useAttachmentHandler({
-        logApiRequestCallback: () => { }, // Placeholder, as logging will be implicit
+        apiKey: activeApiKey?.value || '',
+        logApiRequestCallback: chat.logApiRequest,
         isInfoInputModeActive,
     });
     const {
@@ -308,33 +310,43 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-800">
-            <header className="p-3 sm:p-4 border-b border-gray-700 flex items-center space-x-3 sticky top-0 bg-gray-800 z-20">
+        <div className="flex flex-col h-full bg-transparent">
+            <header className="p-3 sm:p-4 border-b border-[var(--aurora-border)] flex items-center space-x-3 sticky top-0 bg-transparent z-20">
                 <button
                     onClick={ui.handleToggleSidebar}
-                    className="p-1.5 text-gray-400 hover:text-gray-200 bg-gray-700 hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="p-1.5 text-[var(--aurora-text-secondary)] hover:text-[var(--aurora-text-primary)] bg-white/5 rounded-md focus:outline-none focus:ring-2 ring-[var(--aurora-accent-primary)] transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]"
                     aria-label={ui.isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
                     title={ui.isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
                 >
                     <Bars3Icon className="w-5 h-5" />
                 </button>
                 <div className="flex-grow overflow-hidden">
-                    <h1 className="text-lg sm:text-xl font-semibold text-gray-200 truncate flex items-center">
+                    <h1 className="text-lg sm:text-xl font-semibold text-[var(--aurora-text-primary)] truncate flex items-center">
                         {chat.currentChatSession ? chat.currentChatSession.title : "Gemini Chat Interface"}
                         {isCharacterMode && <UsersIcon className="w-5 h-5 ml-2 text-purple-400 flex-shrink-0" />}
                     </h1>
                     <div className="flex items-center space-x-2">
-                        {chat.currentChatSession && <p className="text-xs text-gray-400 truncate" title={getModelDisplayName(chat.currentChatSession.model)}>Model: {getModelDisplayName(chat.currentChatSession.model)}</p>}
+                        {chat.currentChatSession && <p className="text-xs text-[var(--aurora-text-secondary)] truncate" title={getModelDisplayName(chat.currentChatSession.model)}>Model: {getModelDisplayName(chat.currentChatSession.model)}</p>}
                         {chat.currentChatSession && <ManualSaveButton onManualSave={chat.handleManualSave} disabled={!chat.currentChatSession || chat.isLoading} />}
+                        {chat.currentChatSession && (
+                            <button
+                                onClick={ui.toggleSelectionMode}
+                                className={`p-1.5 rounded-md transition-all focus:outline-none focus:ring-2 ring-[var(--aurora-accent-primary)] ${ui.isSelectionModeActive ? 'bg-[var(--aurora-accent-primary)] text-white hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]' : 'text-[var(--aurora-text-secondary)] hover:text-white hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]'}`}
+                                title={ui.isSelectionModeActive ? "Done Selecting" : "Select Multiple Messages"}
+                                aria-label={ui.isSelectionModeActive ? "Exit multiple selection mode" : "Enter multiple selection mode"}
+                            >
+                                {ui.isSelectionModeActive ? <XCircleIcon className="w-5 h-5" /> : <ClipboardDocumentCheckIcon className="w-5 h-5" />}
+                            </button>
+                        )}
                     </div>
                 </div>
                 {isCharacterMode && chat.currentChatSession && (
                     <div className="ml-auto flex items-center space-x-2">
-                        <button onClick={toggleReordering} className={`p-1.5 sm:px-3 sm:py-1.5 text-xs font-medium rounded-md transition-colors flex items-center ${isReorderingActive ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'}`} title={isReorderingActive ? "Done Reordering" : "Edit Character Order"}>
+                        <button onClick={toggleReordering} className={`p-1.5 sm:px-3 sm:py-1.5 text-xs font-medium rounded-md transition-all flex items-center ${isReorderingActive ? 'bg-green-600 text-white hover:shadow-[0_0_12px_2px_rgba(34,197,94,0.6)]' : 'bg-white/5 text-[var(--aurora-text-secondary)] hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]'}`} title={isReorderingActive ? "Done Reordering" : "Edit Character Order"}>
                             {isReorderingActive ? <CheckIcon className="w-4 h-4 sm:mr-1.5" /> : <ArrowsUpDownIcon className="w-4 h-4 sm:mr-1.5" />}
                             <span className="hidden sm:inline">{isReorderingActive ? "Done" : "Edit Order"}</span>
                         </button>
-                        <button onClick={ui.openCharacterManagementModal} className="flex items-center p-1.5 sm:px-3 sm:py-1.5 text-xs font-medium text-purple-300 bg-purple-600 bg-opacity-30 rounded-md hover:bg-opacity-50 transition-colors" title="Manage AI Characters" disabled={isReorderingActive}>
+                        <button onClick={ui.openCharacterManagementModal} className="flex items-center p-1.5 sm:px-3 sm:py-1.5 text-xs font-medium text-purple-300 bg-purple-600 bg-opacity-30 rounded-md transition-all hover:shadow-[0_0_12px_2px_rgba(156,51,245,0.6)]" title="Manage AI Characters" disabled={isReorderingActive}>
                             <PlusIcon className="w-4 h-4 sm:mr-1.5" />
                             <span className="hidden sm:inline">Manage Characters</span>
                         </button>
@@ -342,40 +354,42 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                 )}
             </header>
 
-            <div ref={messageListRef} onScroll={handleScroll} className="flex-1 p-4 sm:p-6 space-y-0 overflow-y-auto relative" role="log" aria-live="polite">
+            <div ref={messageListRef} onScroll={handleScroll} className={`flex-1 p-4 sm:p-6 overflow-y-auto relative ${ui.isSelectionModeActive ? 'pb-20' : ''}`} role="log" aria-live="polite">
                 {chat.currentChatSession && showLoadButtonsUI && visibleMessages.length < totalMessagesInSession && (
                     <div className="sticky top-2 left-1/2 transform -translate-x-1/2 z-10 flex flex-col items-center space-y-2 my-2">
-                        {amountToLoad > 0 && <button onClick={() => handleLoadMore(amountToLoad)} className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-transform transform hover:scale-105">Show {amountToLoad} More</button>}
-                        <button onClick={handleLoadAll} className="px-4 py-2 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded-full shadow-lg transition-transform transform hover:scale-105">Show All History ({totalMessagesInSession - visibleMessages.length} more)</button>
+                        {amountToLoad > 0 && <button onClick={() => handleLoadMore(amountToLoad)} className="px-4 py-2 text-xs bg-[var(--aurora-accent-primary)] text-white rounded-full shadow-lg transition-all transform hover:scale-105 hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)]">Show {amountToLoad} More</button>}
+                        <button onClick={handleLoadAll} className="px-4 py-2 text-xs bg-white/10 text-white rounded-full shadow-lg transition-all transform hover:scale-105 hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]">Show All History ({totalMessagesInSession - visibleMessages.length} more)</button>
                     </div>
                 )}
-                {chat.currentChatSession ? (
-                    visibleMessages.length > 0 ? (
-                        visibleMessages.map((msg) => {
-                            const fullMessageList = chat.currentChatSession!.messages; // Still need full list for this logic
-                            const currentMessageIndexInFullList = fullMessageList.findIndex(m => m.id === msg.id);
-                            const nextMessageInFullList = (currentMessageIndexInFullList !== -1 && currentMessageIndexInFullList < fullMessageList.length - 1) ? fullMessageList[currentMessageIndexInFullList + 1] : null;
-                            const canRegenerateFollowingAI = msg.role === ChatMessageRole.USER && nextMessageInFullList !== null && (nextMessageInFullList.role === ChatMessageRole.MODEL || nextMessageInFullList.role === ChatMessageRole.ERROR) && !isCharacterMode;
-                            return <MessageItem key={msg.id} message={msg} canRegenerateFollowingAI={canRegenerateFollowingAI} chatScrollContainerRef={messageListRef} onEnterReadMode={onEnterReadMode} />;
-                        })
+                <div className={`flex flex-col space-y-0 ${showLoadButtonsUI ? "pt-24" : ""}`}>
+                    {chat.currentChatSession ? (
+                        visibleMessages.length > 0 ? (
+                            visibleMessages.map((msg) => {
+                                const fullMessageList = chat.currentChatSession!.messages; 
+                                const currentMessageIndexInFullList = fullMessageList.findIndex(m => m.id === msg.id);
+                                const nextMessageInFullList = (currentMessageIndexInFullList !== -1 && currentMessageIndexInFullList < fullMessageList.length - 1) ? fullMessageList[currentMessageIndexInFullList + 1] : null;
+                                const canRegenerateFollowingAI = msg.role === ChatMessageRole.USER && nextMessageInFullList !== null && (nextMessageInFullList.role === ChatMessageRole.MODEL || nextMessageInFullList.role === ChatMessageRole.ERROR) && !isCharacterMode;
+                                return <MessageItem key={msg.id} message={msg} canRegenerateFollowingAI={canRegenerateFollowingAI} chatScrollContainerRef={messageListRef} onEnterReadMode={onEnterReadMode} />;
+                            })
+                        ) : (
+                            <div className="text-center text-gray-500 italic mt-10">
+                                {isCharacterMode && characters.length === 0 ? "Add some characters and start the scene!" : (isCharacterMode ? "Select a character to speak." : "Start the conversation!")}
+                            </div>
+                        )
                     ) : (
-                        <div className="text-center text-gray-500 italic mt-10">
-                            {isCharacterMode && characters.length === 0 ? "Add some characters and start the scene!" : (isCharacterMode ? "Select a character to speak." : "Start the conversation!")}
-                        </div>
-                    )
-                ) : (
-                    <div className="text-center text-gray-500 italic mt-10">Select a chat from the history or start a new one.</div>
-                )}
+                        <div className="text-center text-gray-500 italic mt-10">Select a chat from the history or start a new one.</div>
+                    )}
+                </div>
                 <div ref={messagesEndRef} />
             </div>
             
-            <div className="sticky bottom-0 z-20 bg-gray-800 flex flex-col">
+            <div className="sticky bottom-0 z-20 bg-transparent flex flex-col">
                 {selectedFiles.length > 0 && (
-                    <div className="p-2 sm:p-3 border-t border-gray-700 bg-gray-800">
+                    <div className="p-2 sm:p-3 border-t border-[var(--aurora-border)] bg-transparent">
                         <div className="flex flex-wrap gap-3">
                             {selectedFiles.map(file => (
-                                <div key={file.id} className="relative group p-2.5 bg-gray-700 rounded-lg shadow flex items-center w-full sm:w-auto sm:max-w-xs md:max-w-sm lg:max-w-md" style={{ minWidth: '200px' }}>
-                                    <div className="flex-shrink-0 w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center overflow-hidden mr-3">
+                                <div key={file.id} className="relative group p-2.5 aurora-panel rounded-lg shadow flex items-center w-full sm:w-auto sm:max-w-xs md:max-w-sm lg:max-w-md" style={{ minWidth: '200px' }}>
+                                    <div className="flex-shrink-0 w-10 h-10 bg-black/20 rounded-full flex items-center justify-center overflow-hidden mr-3">
                                         {(file.uploadState === 'reading_client' || (file.uploadState === 'uploading_to_cloud' && !file.progress) || file.uploadState === 'processing_on_server') && file.isLoading && !(file.dataUrl && (file.type === 'image' || file.type === 'video')) ? (
                                             file.uploadState === 'uploading_to_cloud' ? <CloudArrowUpIcon className="w-5 h-5 text-blue-400 animate-pulse" /> :
                                             file.uploadState === 'processing_on_server' ? <ServerIcon className="w-5 h-5 text-blue-400 animate-pulse" /> :
@@ -394,10 +408,10 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                                         <p className="text-sm font-medium text-gray-200 truncate" title={file.name}>{getDisplayFileType(file)}</p>
                                         <p className="text-xs text-gray-400 truncate" title={file.statusMessage || getFileProgressDisplay(file)}>{getFileProgressDisplay(file)}</p>
                                         {(file.uploadState === 'uploading_to_cloud' && file.progress !== undefined && file.progress > 0) && (
-                                            <div className="w-full bg-gray-600 rounded-full h-1 mt-1"><div className="bg-blue-500 h-1 rounded-full transition-all duration-150 ease-linear" style={{ width: `${file.progress || 0}%` }}></div></div>
+                                            <div className="w-full bg-black/20 rounded-full h-1 mt-1"><div className="bg-blue-500 h-1 rounded-full transition-all duration-150 ease-linear" style={{ width: `${file.progress || 0}%` }}></div></div>
                                         )}
                                     </div>
-                                    <button onClick={() => removeSelectedFile(file.id)} className="flex-shrink-0 p-1 bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white rounded-full transition-colors" title="Remove file" aria-label="Remove file">
+                                    <button onClick={() => removeSelectedFile(file.id)} className="flex-shrink-0 p-1 bg-black/20 text-gray-300 hover:text-white rounded-full transition-shadow hover:shadow-[0_0_10px_1px_rgba(239,68,68,0.7)]" title="Remove file" aria-label="Remove file">
                                         <XCircleIcon className="w-5 h-5" />
                                     </button>
                                 </div>
@@ -406,14 +420,14 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                     </div>
                 )}
                 {isCharacterMode && characters.length > 0 && (
-                    <div ref={characterButtonContainerRef} className="p-2 sm:p-3 border-t border-gray-700 bg-gray-800" onDragOver={handleDragOver} onDrop={handleDrop}>
+                    <div ref={characterButtonContainerRef} className="p-2 sm:p-3 border-t border-[var(--aurora-border)] bg-transparent" onDragOver={handleDragOver} onDrop={handleDrop}>
                         <p className="text-xs text-gray-400 mb-2">{isReorderingActive ? "Drag to reorder characters, then click 'Done'." : (isInfoInputModeActive ? "Input is for one-time info. Select character to speak:" : (chat.autoSendHook.isPreparingAutoSend ? "Auto-send ready. Select character to start:" : "Select a character to speak (can be empty input):"))}</p>
                         <div className="flex flex-wrap gap-2">
                             {characters.map((char) => (
                                 <button key={char.id} data-char-id={char.id} onClick={() => !isReorderingActive && handleSendMessageClick(char.id)} 
                                 disabled={!chat.currentChatSession || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive || (isReorderingActive && !!draggedCharRef.current && draggedCharRef.current.id === char.id)} 
                                 draggable={isReorderingActive} onDragStart={(e) => handleDragStart(e, char)} onDragEnd={handleDragEnd} 
-                                className={`px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 transition-all duration-150 ease-in-out ${isReorderingActive ? 'cursor-grab hover:ring-2 hover:ring-purple-400' : 'disabled:cursor-not-allowed'} ${draggedCharRef.current?.id === char.id ? 'opacity-50 ring-2 ring-blue-500' : ''} ${(chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading) ? 'ring-2 ring-green-500 hover:ring-green-400' : ''}`} 
+                                className={`px-3 py-1.5 text-sm bg-[var(--aurora-accent-secondary)] text-white rounded-md disabled:opacity-50 transition-all duration-150 ease-in-out hover:shadow-[0_0_12px_2px_rgba(156,51,245,0.6)] ${isReorderingActive ? 'cursor-grab hover:ring-2 hover:ring-purple-400' : 'disabled:cursor-not-allowed'} ${draggedCharRef.current?.id === char.id ? 'opacity-50 ring-2 ring-blue-500' : ''} ${(chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading) ? 'ring-2 ring-green-500 hover:ring-green-400' : ''}`} 
                                 title={isReorderingActive ? `Drag to reorder ${char.name}` : (chat.autoSendHook.isPreparingAutoSend && !chat.autoSendHook.isAutoSendingActive && !chat.isLoading ? `Start auto-sending as ${char.name}` : `Speak as ${char.name}`)}>
                                     {char.name}
                                 </button>
@@ -444,20 +458,20 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                         errorRetryCountdown={chat.autoSendHook.errorRetryCountdown}
                     />
                 )}
-                <div className="p-3 sm:p-4 border-t border-gray-700 bg-gray-800">
+                <div className="p-3 sm:p-4 border-t border-[var(--aurora-border)] bg-transparent">
                     {chat.isLoading && <p className="text-xs text-center text-blue-400 mb-2 animate-pulse">{loadingMessageText}</p>}
-                    <div className="flex items-end bg-gray-700 rounded-lg p-1 focus-within:ring-2 focus-within:ring-blue-500">
+                    <div className="flex items-end aurora-panel rounded-lg p-1 focus-within:ring-2 focus-within:ring-[var(--aurora-accent-primary)] transition-shadow">
                         <input type="file" multiple ref={fileInputRef} onChange={(e) => handleFileSelection(e.target.files)} className="hidden" accept="image/*,video/*,.pdf,text/*,application/json" />
                         <button 
                             onClick={() => fileInputRef.current?.click()} 
-                            disabled={!chat.currentChatSession || isInfoInputModeActive || chat.autoSendHook.isAutoSendingActive} 
-                            className="p-2.5 sm:p-3 m-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-blue-500" 
+                            disabled={!chat.currentChatSession || isInfoInputModeActive || chat.autoSendHook.isAutoSendingActive || ui.isSelectionModeActive} 
+                            className="p-2.5 sm:p-3 m-1 text-gray-300 hover:text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-shadow hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)] focus:outline-none" 
                             title="Attach files" 
                             aria-label="Attach files">
                             <PaperClipIcon className="w-5 h-5" />
                         </button>
                         {isCharacterMode && (
-                            <button onClick={toggleInfoInputMode} disabled={chat.isLoading || !chat.currentChatSession || chat.autoSendHook.isAutoSendingActive} className={`p-2.5 sm:p-3 m-1 text-gray-300 rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 ${isInfoInputModeActive ? 'bg-yellow-500 hover:bg-yellow-600 text-white focus:ring-yellow-400' : 'hover:text-white focus:ring-blue-500'}`} title={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input"} aria-label={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input"} aria-pressed={isInfoInputModeActive}>
+                            <button onClick={toggleInfoInputMode} disabled={chat.isLoading || !chat.currentChatSession || chat.autoSendHook.isAutoSendingActive || ui.isSelectionModeActive} className={`p-2.5 sm:p-3 m-1 text-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-shadow focus:outline-none ${isInfoInputModeActive ? 'bg-yellow-500/20 text-yellow-300 hover:shadow-[0_0_12px_2px_rgba(234,179,8,0.6)]' : 'hover:text-white hover:shadow-[0_0_12px_2px_rgba(255,255,255,0.2)]'}`} title={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input"} aria-label={isInfoInputModeActive ? "Disable One-Time Info Input" : "Enable One-Time Info Input"} aria-pressed={isInfoInputModeActive}>
                                 <InfoIcon className="w-5 h-5" />
                             </button>
                         )}
@@ -470,19 +484,19 @@ const ChatView = forwardRef<ChatViewHandles, ChatViewProps>(({
                             onChange={handleInputChange} 
                             onKeyPress={handleKeyPress} 
                             onPaste={handlePaste} 
-                            disabled={!chat.currentChatSession || isAnyFileStillProcessing() || chat.autoSendHook.isAutoSendingActive} 
+                            disabled={!chat.currentChatSession || chat.autoSendHook.isAutoSendingActive || ui.isSelectionModeActive} 
                             aria-label="Chat input" />
                         {!isCharacterMode && (
-                            <button onClick={handleContinueFlowClick} disabled={chat.isLoading || !chat.currentChatSession || (chat.currentChatSession && chat.currentChatSession.messages.length === 0) || isAnyFileStillProcessing() || isCharacterMode || chat.autoSendHook.isAutoSendingActive} className="p-2.5 sm:p-3 m-1 text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-teal-500" title="Continue Flow" aria-label="Continue flow">
+                            <button onClick={handleContinueFlowClick} disabled={chat.isLoading || !chat.currentChatSession || (chat.currentChatSession && chat.currentChatSession.messages.length === 0) || isAnyFileStillProcessing() || isCharacterMode || chat.autoSendHook.isAutoSendingActive || ui.isSelectionModeActive} className="p-2.5 sm:p-3 m-1 text-white bg-teal-600/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-shadow hover:shadow-[0_0_12px_2px_rgba(13,148,136,0.6)] focus:outline-none" title="Continue Flow" aria-label="Continue flow">
                                 <FlowRightIcon className="w-5 h-5" />
                             </button>
                         )}
                         {(chat.isLoading || chat.autoSendHook.isAutoSendingActive) ? (
-                            <button onClick={handleMainCancelButtonClick} className="p-2.5 sm:p-3 m-1 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-red-500" aria-label={chat.autoSendHook.isAutoSendingActive ? "Stop automated sending" : "Cancel generation"} title={chat.autoSendHook.isAutoSendingActive ? "Stop automated sending" : "Cancel generation"}>
+                            <button onClick={handleMainCancelButtonClick} className="p-2.5 sm:p-3 m-1 text-white bg-red-600/80 rounded-md transition-shadow hover:shadow-[0_0_12px_2px_rgba(239,68,68,0.6)] focus:outline-none" aria-label={chat.autoSendHook.isAutoSendingActive ? "Stop automated sending" : "Cancel generation"} title={chat.autoSendHook.isAutoSendingActive ? "Stop automated sending" : "Cancel generation"}>
                                 <StopIcon className="w-5 h-5" />
                             </button>
                         ) : (
-                            <button onClick={() => handleSendMessageClick()} disabled={!hasValidInputForMainSend || !chat.currentChatSession || isAnyFileStillProcessing() || isCharacterMode || chat.autoSendHook.isAutoSendingActive} className={`p-2.5 sm:p-3 m-1 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-blue-500 ${isCharacterMode ? 'hidden' : ''}`} aria-label="Send message" title="Send message">
+                            <button onClick={() => handleSendMessageClick()} disabled={!hasValidInputForMainSend || !chat.currentChatSession || isAnyFileStillProcessing() || isCharacterMode || chat.autoSendHook.isAutoSendingActive || ui.isSelectionModeActive} className={`p-2.5 sm:p-3 m-1 text-white bg-[var(--aurora-accent-primary)] rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-shadow hover:shadow-[0_0_12px_2px_rgba(90,98,245,0.6)] focus:outline-none ${isCharacterMode ? 'hidden' : ''}`} aria-label="Send message" title="Send message">
                                 <SendIcon className="w-5 h-5" />
                             </button>
                         )}

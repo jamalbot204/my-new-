@@ -244,4 +244,5 @@ export const METADATA_KEYS = {
     MESSAGES_TO_DISPLAY_CONFIG: 'messagesToDisplayConfig',
     USER_DEFINED_GLOBAL_DEFAULTS: USER_DEFINED_GLOBAL_DEFAULTS_KEY,
     EXPORT_CONFIGURATION: 'exportConfiguration', // New key for export settings
+    API_KEYS: 'apiKeys', // For storing user-managed API keys
 };
